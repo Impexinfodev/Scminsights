@@ -1,0 +1,131 @@
+# ===========================================
+# SCM-INSIGHTS Backend .gitignore
+# ===========================================
+
+# ===========================================
+# Environment & Secrets
+# ===========================================
+
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+
+# SSL certificates (never commit)
+*.pem
+*.key
+*.crt
+*.cer
+cert.pem
+key.pem
+ssl/
+
+# ===========================================
+# Python
+# ===========================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+ENV/
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ===========================================
+# IDE & Editors
+# ===========================================
+
+.vscode/
+*.code-workspace
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+
+# ===========================================
+# Operating System
+# ===========================================
+
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ===========================================
+# Logs & Temporary
+# ===========================================
+
+logs/
+*.log
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+
+# ===========================================
+# Testing & Coverage
+# ===========================================
+
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+coverage.xml
+*.cover
+.pytest_cache/
+
+# ===========================================
+# Database
+# ===========================================
+
+*.db
+*.sqlite
+*.sqlite3
+
+# ===========================================
+# Static / Large Data (keep out of repo)
+# ===========================================
+
+# Large CSV/JSON data (use import scripts or CI to populate)
+static/*.csv
+static/*.json
+!static/.gitkeep
+
+# ===========================================
+# Misc
+# ===========================================
+
+.mypy_cache/
+*.prof
