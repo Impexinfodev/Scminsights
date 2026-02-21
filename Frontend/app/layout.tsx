@@ -170,7 +170,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/* Favicons */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -180,7 +180,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#2563eb" />
-        
+
         <link rel="canonical" href={baseUrl} />
         <script
           type="application/ld+json"

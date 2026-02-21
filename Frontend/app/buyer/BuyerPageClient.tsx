@@ -595,9 +595,8 @@ export default function BuyerPageClient() {
                             setSortBy(option.value);
                             setIsSortByDropdownOpen(false);
                           }}
-                          className={`px-4 py-2.5 cursor-pointer hover:bg-blue-50 text-sm text-gray-700 transition-colors ${
-                            sortBy === option.value ? "bg-blue-50 text-blue-600 font-medium" : ""
-                          }`}
+                          className={`px-4 py-2.5 cursor-pointer hover:bg-blue-50 text-sm text-gray-700 transition-colors ${sortBy === option.value ? "bg-blue-50 text-blue-600 font-medium" : ""
+                            }`}
                         >
                           {option.label}
                         </li>
@@ -614,10 +613,7 @@ export default function BuyerPageClient() {
               <div className="relative">
                 <button
                   type="button"
-                  onClick={() => {
-                    if (validateHsCode(hsCode).length >= 2) fetchAvailableYears(yearsCancelledRef);
-                    setIsYearDropdownOpen(!isYearDropdownOpen);
-                  }}
+                  onClick={() => setIsYearDropdownOpen(!isYearDropdownOpen)}
                   className="w-full h-11 px-4 pr-10 text-sm text-left bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer flex items-center justify-between"
                 >
                   <span className={!year && !isYearsLoading ? "text-gray-500" : ""}>
@@ -771,16 +767,16 @@ export default function BuyerPageClient() {
                         </td>
                         <td className="px-5 py-3.5 text-gray-600">{supplier.Country || supplier.country || "—"}</td>
                         <td className="px-5 py-3.5 text-gray-600">
-                          {formatNumber(supplier.Frequency || supplier.frequency)}
+                          {formatNumber(supplier.Frequency ?? supplier.frequency)}
                         </td>
                         <td className="px-5 py-3.5 text-gray-600">
-                          {formatNumber(supplier.TotalWeight || supplier.totalWeight || supplier.total_weight)}
+                          {formatNumber(supplier.TotalWeight ?? supplier.totalWeight ?? supplier.total_weight)}
                         </td>
                         <td className="px-5 py-3.5 text-gray-600">
-                          {formatNumber(supplier.TotalQuantity || supplier.totalQuantity || supplier.total_quantity)}
+                          {formatNumber(supplier.TotalQuantity ?? supplier.totalQuantity ?? supplier.total_quantity)}
                         </td>
                         <td className="px-5 py-3.5 font-medium text-gray-900">
-                          {formatNumber(supplier.TotalPrice || supplier.totalPrice || supplier.total_price)}
+                          {formatNumber(supplier.TotalPrice ?? supplier.totalPrice ?? supplier.total_price)}
                         </td>
                         <td className="px-5 py-3.5">
                           <HugeiconsIcon icon={LinkSquare01Icon} size={14} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
