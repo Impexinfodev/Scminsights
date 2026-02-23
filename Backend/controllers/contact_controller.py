@@ -1,7 +1,9 @@
 # SCM-INSIGHTS Contact form (public submit, no auth)
+import logging
 import re
 from flask import Blueprint, request, jsonify
 
+logger = logging.getLogger(__name__)
 contact_bp = Blueprint("contact", __name__, url_prefix="/api/contact")
 
 
@@ -34,5 +36,5 @@ def submit_contact():
         admin_repo.save_contact_message(name, email, phone, message)
         return jsonify({"message": "Thank you for your message. We'll get back to you soon."}), 200
     except Exception as e:
-        print(f"Contact save error: {e}")
+        logger.error("Contact save failed: %s", type(e).__name__, exc_info=False)
         return jsonify({"error": "Failed to submit your message. Please try again."}), 500

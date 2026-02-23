@@ -99,7 +99,9 @@ function AccountActivateContent() {
     const activate = async () => {
       try {
         const res = await axios.post(
-          `${backendUrl}/api/auth/account-activate?token=${encodeURIComponent(token)}`
+          `${backendUrl}/api/auth/account-activate?token=${encodeURIComponent(token)}`,
+          {},
+          { headers: { "X-Requested-With": "XMLHttpRequest", "X-Client": "scm-insights" } }
         );
         setMessage(res.data?.message || "Account activated successfully.");
         setStatus("success");

@@ -128,6 +128,9 @@ export default function SupplierPageClient() {
   const [isYearsLoading, setIsYearsLoading] = useState(false);
   const yearRef = useRef<HTMLDivElement>(null);
 
+  // AbortController to cancel in-flight fetch when filters/page change (avoid race)
+  const fetchAbortRef = useRef<AbortController | null>(null);
+
   // Sort By dropdown state — values match /api/trade/top sort_by
   const [sortBy, setSortBy] = useState("total_price");
   const [isSortByDropdownOpen, setIsSortByDropdownOpen] = useState(false);
@@ -324,6 +327,10 @@ export default function SupplierPageClient() {
       return;
     }
 
+    fetchAbortRef.current?.abort();
+    fetchAbortRef.current = new AbortController();
+    const signal = fetchAbortRef.current.signal;
+
     setIsLoading(true);
     try {
       const validatedPageSize = Math.min(validatePageSize(newPageSize, 50), 100);
@@ -338,9 +345,10 @@ export default function SupplierPageClient() {
       if (country.trim()) params.set("country", sanitizeSearchInput(country.trim()));
       if (year !== "") params.set("year", String(year));
 
-      const res = await fetch(`${BACKEND_URL}/api/trade/top?${params}`);
+      const res = await fetch(`${BACKEND_URL}/api/trade/top?${params}`, { signal });
       const json = await res.json();
 
+      if (signal.aborted) return;
       if (!res.ok) {
         throw new Error(json?.error || "Search failed");
       }
@@ -364,6 +372,7 @@ export default function SupplierPageClient() {
       setPageIndex(newPageIndex);
       setPageSize(validatedPageSize);
     } catch (e) {
+      if ((e as Error).name === "AbortError") return;
       setSuppliers([]);
       setTotalResults(0);
       setTotalPages(0);
@@ -371,7 +380,8 @@ export default function SupplierPageClient() {
       setHasPrev(false);
       setToast({ message: (e as Error).message || "Failed to load suppliers", type: "error" });
     } finally {
-      setIsLoading(false);
+      if (!signal.aborted) setIsLoading(false);
+      fetchAbortRef.current = null;
     }
   };
 

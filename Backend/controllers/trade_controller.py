@@ -2,6 +2,7 @@
 from flask import Blueprint, request, jsonify
 import logging
 
+from extensions import limiter
 from repositories.trade_repository import (
     get_top_traders,
     get_available_years,
@@ -91,6 +92,7 @@ def get_trade_years():
 
 
 @trade_bp.route("/top", methods=["GET"])
+@limiter.limit("60 per minute")
 def get_trade_top():
     trade_type, code = _validate_trade_type(request.args.get("trade_type"))
     if code:

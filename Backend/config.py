@@ -72,7 +72,7 @@ FLASK_CONFIG = {
 
 CORS_ORIGINS = get_env_list(
     "CORS_ORIGINS",
-    "http://localhost:3000,https://scminsights.ai,https://www.scminsights.ai",
+    "http://localhost:3000,http://127.0.0.1:3000,http://192.168.1.21:3000,https://scminsights.ai,https://www.scminsights.ai",
 )
 
 

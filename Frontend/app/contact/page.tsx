@@ -152,7 +152,11 @@ export default function ContactPage() {
     try {
       const response = await fetch(contactApiUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-Client": "scm-insights",
+        },
         body: JSON.stringify(formData),
       });
 

@@ -20,12 +20,11 @@ def get_all_users():
         return jsonify({"error": "Invalid pagination parameters"}), 400
     search_term = (request.args.get("search") or "").strip() or None
     admin_repo = RepoProvider.get_admin_repo()
-    users = admin_repo.get_all_users(sort_order=sort_order, search_term=search_term)
-    total = len(users)
-    start = (page - 1) * page_size
-    end = start + page_size
+    users, total = admin_repo.get_all_users(
+        sort_order=sort_order, search_term=search_term, page=page, page_size=page_size
+    )
     return jsonify({
-        "users": users[start:end],
+        "users": users,
         "pagination": {
             "page": page,
             "page_size": page_size,
@@ -104,9 +103,7 @@ def overview():
     """Overview tab: basic stats for admin dashboard."""
     from repositories.repo_provider import RepoProvider
     admin_repo = RepoProvider.get_admin_repo()
-    users = admin_repo.get_all_users(sort_order="desc")
-    total_users = len(users)
-    active_users = sum(1 for u in users if u.get("ActivationStatus"))
+    total_users, active_users = admin_repo.get_users_overview_counts()
     return jsonify({
         "total_users": total_users,
         "active_users": active_users,

@@ -1,4 +1,5 @@
 # SCM-INSIGHTS Auth Controller
+import os
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timezone
 from services.auth_service import AuthService
@@ -45,8 +46,15 @@ def login():
         "countries": COUNTRY_NAMES,
     }
     response = jsonify(response_data)
-    response.set_cookie("session_token", session_token, httponly=True, samesite="Lax")
-    response.set_cookie("user_id", user_id, httponly=True, samesite="Lax")
+    secure_cookie = os.environ.get("FLASK_ENV") == "production"
+    response.set_cookie(
+        "session_token", session_token,
+        httponly=True, samesite="Lax", secure=secure_cookie
+    )
+    response.set_cookie(
+        "user_id", user_id,
+        httponly=True, samesite="Lax", secure=secure_cookie
+    )
     return response, 200
 
 

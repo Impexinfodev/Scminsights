@@ -36,6 +36,10 @@ CREATE TABLE IF NOT EXISTS Session (
     UNIQUE(UserId, ClientId)
 );
 """
+# Index for session expiry cleanup and auth lookups
+SESSION_INDEX_STATEMENTS = [
+    "CREATE INDEX IF NOT EXISTS idx_session_expiration ON Session (ExpirationTime);",
+]
 
 CREATE_USER_TOKEN_TABLE = """
 CREATE TABLE IF NOT EXISTS UserToken (

@@ -3,7 +3,7 @@
 # ===========================================
 # Reads from trade_company_report in the same DB as SCM (POSTGRES_*).
 # Table schema: trade_type, hs_code, year, enterprise, data_country,
-# frequency, total_price, total_quantity, total_weight,
+# frequency_ratio (used as frequency), total_price, total_quantity, total_weight,
 # total_container_quantity, percentage.
 
 from typing import Optional, List, Dict, Any
@@ -22,7 +22,7 @@ SORTABLE_COLUMNS = frozenset({
 OUTPUT_COLUMNS = [
     "enterprise",
     "data_country",
-    "frequency",
+    "frequency_ratio",
     "total_price",
     "total_quantity",
     "total_weight",
@@ -62,11 +62,19 @@ def _safe_sort(column: str) -> str:
     return column if column in SORTABLE_COLUMNS else "frequency"
 
 
+def _sort_col_sql(column: str) -> str:
+    """Return DB column for ORDER BY; API 'frequency' maps to frequency_ratio."""
+    if column not in SORTABLE_COLUMNS:
+        return "frequency_ratio"
+    return "frequency_ratio" if column == "frequency" else column
+
+
 def _safe_order(order: str) -> str:
     return "ASC" if str(order).lower() == "asc" else "DESC"
 
 
 def _row_to_item(row: tuple) -> Dict[str, Any]:
+    # row[2] is frequency_ratio from DB; exposed as "frequency" in API
     return {
         "enterprise": row[0] or "",
         "data_country": row[1] or "",
@@ -94,6 +102,7 @@ def get_top_traders(
     With year: filter by year. Without year: aggregate across all years (GROUP BY enterprise, data_country).
     """
     sort_col = _safe_sort(sort_by)
+    order_col = _sort_col_sql(sort_col)
     direction = _safe_order(sort_order)
     page = _safe_int(page, 1, 1)
     page_size = _safe_int(page_size, 25, 1, 100)
@@ -112,6 +121,7 @@ def get_top_traders(
     pool = _get_pool()
     with pool.connection() as conn:
         with conn.cursor() as cur:
+            cur.execute("SET statement_timeout = 15000")  # 15s max per query for global scale
             if year is not None:
                 cur.execute(
                     f"SELECT COUNT(*) FROM trade_company_report WHERE {where}",
@@ -121,7 +131,7 @@ def get_top_traders(
                 cols = ", ".join(OUTPUT_COLUMNS)
                 cur.execute(
                     f"SELECT {cols} FROM trade_company_report "
-                    f"WHERE {where} ORDER BY {sort_col} {direction} "
+                    f"WHERE {where} ORDER BY {order_col} {direction} "
                     f"LIMIT %s OFFSET %s",
                     tuple(params + [page_size, offset]),
                 )
@@ -136,7 +146,7 @@ def get_top_traders(
                 total_items = cur.fetchone()[0]
                 agg = (
                     "enterprise, data_country, "
-                    "SUM(frequency) AS frequency, SUM(total_price) AS total_price, "
+                    "SUM(frequency_ratio) AS frequency_ratio, SUM(total_price) AS total_price, "
                     "SUM(total_quantity) AS total_quantity, SUM(total_weight) AS total_weight, "
                     "SUM(total_container_quantity) AS total_container_quantity, "
                     "SUM(percentage) AS percentage"
@@ -144,7 +154,7 @@ def get_top_traders(
                 cur.execute(
                     f"SELECT {agg} FROM trade_company_report "
                     f"WHERE {where} GROUP BY enterprise, data_country "
-                    f"ORDER BY {sort_col} {direction} LIMIT %s OFFSET %s",
+                    f"ORDER BY {order_col} {direction} LIMIT %s OFFSET %s",
                     tuple(params + [page_size, offset]),
                 )
             rows = cur.fetchall()

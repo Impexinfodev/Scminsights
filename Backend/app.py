@@ -4,7 +4,7 @@
 # Main entry. Same tech and flow as main Impexinfo backend; separate DB and auth.
 
 import os
-from flask import Flask
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -16,6 +16,7 @@ from config import (
     SSL_CONFIG,
     get_database_config,
 )
+from extensions import limiter
 
 
 def create_app(config_override=None):
@@ -25,6 +26,8 @@ def create_app(config_override=None):
     app.config["DEBUG"] = FLASK_CONFIG["DEBUG"]
     if config_override:
         app.config.update(config_override)
+
+    limiter.init_app(app)
 
     CORS(
         app,
@@ -55,17 +58,43 @@ def create_app(config_override=None):
     app.register_blueprint(contact_bp)
     app.register_blueprint(trade_bp)
 
+    # CSRF mitigation: require X-Requested-With or X-Client for state-changing POSTs (browser sends these)
+    @app.before_request
+    def require_csrf_header():
+        if request.method not in ("POST", "PUT", "DELETE", "PATCH"):
+            return None
+        path = (request.path or "").rstrip("/")
+        state_changing = (
+            path in ("/login", "/signup", "/logout", "/forgot-password")
+            or path.startswith("/api/auth/")
+            or path.startswith("/api/contact")
+        )
+        if not state_changing:
+            return None
+        if request.headers.get("X-Requested-With") or request.headers.get("X-Client"):
+            return None
+        return jsonify({"error": "Invalid request", "code": "CSRF_CHECK"}), 403
+
     # Legacy routes (same as /api/auth/*) so SCM frontend can use /login, /signup, /logout without change
     from controllers.auth_controller import login, signup, logout, forgot_password
-    app.add_url_rule("/login", view_func=login, methods=["POST"])
-    app.add_url_rule("/signup", view_func=signup, methods=["POST"])
+    app.add_url_rule("/login", view_func=limiter.limit("10/minute")(login), methods=["POST"])
+    app.add_url_rule("/signup", view_func=limiter.limit("5/minute")(signup), methods=["POST"])
     app.add_url_rule("/logout", view_func=logout, methods=["POST"])
-    app.add_url_rule("/forgot-password", view_func=forgot_password, methods=["POST"])
+    app.add_url_rule("/forgot-password", view_func=limiter.limit("5/minute")(forgot_password), methods=["POST"])
 
     return app
 
 
 app = create_app()
+
+
+@app.after_request
+def security_headers(resp):
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "SAMEORIGIN"
+    if os.environ.get("FLASK_ENV") == "production":
+        resp.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return resp
 
 
 @app.route("/health", methods=["GET"])

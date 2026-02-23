@@ -1,7 +1,9 @@
 # SCM-INSIGHTS SIMS directory API (same path and response shape as main backend)
 # Serves Buyers Directory from SimsDirectory table; no auth required on endpoint.
+import logging
 from flask import Blueprint, request, jsonify
 
+logger = logging.getLogger(__name__)
 sims_data_bp = Blueprint("sims_data", __name__, url_prefix="/api/sims-data")
 
 
@@ -26,7 +28,7 @@ def list_sims_data():
         from repositories.repo_provider import RepoProvider
         admin_repo = RepoProvider.get_admin_repo()
     except Exception as e:
-        print(f"sims_data list_sims_data repo error: {e}")
+        logger.error("sims_data repo error: %s", type(e).__name__, exc_info=False)
         return jsonify({"success": False, "error": "Failed to fetch directory data."}), 500
 
     page = _safe_int(request.args.get("page"), 1)
@@ -38,7 +40,7 @@ def list_sims_data():
             page=page, limit=limit, search_term=search_term
         )
     except Exception as e:
-        print(f"sims_data get_sims_directory_page error: {e}")
+        logger.error("sims_data get_sims_directory_page failed: %s", type(e).__name__, exc_info=False)
         return jsonify({"success": False, "error": "Failed to fetch directory data."}), 500
 
     total_pages = (total_items + limit - 1) // limit if limit else 0

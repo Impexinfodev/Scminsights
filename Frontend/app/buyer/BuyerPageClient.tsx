@@ -129,6 +129,9 @@ export default function BuyerPageClient() {
   const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
   const yearRef = useRef<HTMLDivElement>(null);
 
+  // AbortController to cancel in-flight fetch when filters/page change (avoid race)
+  const fetchAbortRef = useRef<AbortController | null>(null);
+
   // Sort By dropdown state — values match /api/trade/top sort_by
   const [sortBy, setSortBy] = useState("total_price");
   const [isSortByDropdownOpen, setIsSortByDropdownOpen] = useState(false);
@@ -332,6 +335,10 @@ export default function BuyerPageClient() {
       return;
     }
 
+    fetchAbortRef.current?.abort();
+    fetchAbortRef.current = new AbortController();
+    const signal = fetchAbortRef.current.signal;
+
     setIsLoading(true);
     try {
       const validatedPageSize = Math.min(validatePageSize(newPageSize, 50), 100);
@@ -346,9 +353,10 @@ export default function BuyerPageClient() {
       if (country.trim()) params.set("country", sanitizeSearchInput(country.trim()));
       if (year !== "") params.set("year", String(year));
 
-      const res = await fetch(`${BACKEND_URL}/api/trade/top?${params}`);
+      const res = await fetch(`${BACKEND_URL}/api/trade/top?${params}`, { signal });
       const json = await res.json();
 
+      if (signal.aborted) return;
       if (!res.ok) {
         throw new Error(json?.error || "Search failed");
       }
@@ -372,6 +380,7 @@ export default function BuyerPageClient() {
       setPageIndex(newPageIndex);
       setPageSize(validatedPageSize);
     } catch (e) {
+      if ((e as Error).name === "AbortError") return;
       setSuppliers([]);
       setTotalResults(0);
       setTotalPages(0);
@@ -379,7 +388,8 @@ export default function BuyerPageClient() {
       setHasPrev(false);
       setToast({ message: (e as Error).message || "Failed to load buyers", type: "error" });
     } finally {
-      setIsLoading(false);
+      if (!signal.aborted) setIsLoading(false);
+      fetchAbortRef.current = null;
     }
   };
 
@@ -733,11 +743,11 @@ export default function BuyerPageClient() {
                 <tr>
                   <th className="px-5 py-3 text-left font-semibold text-gray-600 w-16">#</th>
                   <th className="px-5 py-3 text-left font-semibold text-gray-600">Name</th>
-                  <th className="px-5 py-3 text-left font-semibold text-gray-600">Country</th>
-                  <th className="px-5 py-3 text-left font-semibold text-gray-600">Frequency</th>
-                  <th className="px-5 py-3 text-left font-semibold text-gray-600">Weight</th>
-                  <th className="px-5 py-3 text-left font-semibold text-gray-600">Qty</th>
-                  <th className="px-5 py-3 text-left font-semibold text-gray-600">Value</th>
+                  <th className="px-5 py-3 text-center font-semibold text-gray-600">Country</th>
+                  <th className="px-5 py-3 text-center font-semibold text-gray-600">Frequency</th>
+                  <th className="px-5 py-3 text-center font-semibold text-gray-600">Weight</th>
+                  <th className="px-5 py-3 text-center font-semibold text-gray-600">Qty</th>
+                  <th className="px-5 py-3 text-center font-semibold text-gray-600">Value</th>
                   <th className="px-5 py-3 w-12"></th>
                 </tr>
               </thead>
@@ -769,17 +779,17 @@ export default function BuyerPageClient() {
                         <td className="px-5 py-3.5 font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
                           {supplier.Name || supplier.name || "—"}
                         </td>
-                        <td className="px-5 py-3.5 text-gray-600">{supplier.Country || supplier.country || "—"}</td>
-                        <td className="px-5 py-3.5 text-gray-600">
+                        <td className="px-5 py-3.5 text-center text-gray-600">{supplier.Country || supplier.country || "—"}</td>
+                        <td className="px-5 py-3.5 text-center text-gray-600">
                           {formatNumber(supplier.Frequency || supplier.frequency)}
                         </td>
-                        <td className="px-5 py-3.5 text-gray-600">
+                        <td className="px-5 py-3.5 text-center text-gray-600">
                           {formatNumber(supplier.TotalWeight || supplier.totalWeight || supplier.total_weight)}
                         </td>
-                        <td className="px-5 py-3.5 text-gray-600">
+                        <td className="px-5 py-3.5 text-center text-gray-600">
                           {formatNumber(supplier.TotalQuantity || supplier.totalQuantity || supplier.total_quantity)}
                         </td>
-                        <td className="px-5 py-3.5 font-medium text-gray-900">
+                        <td className="px-5 py-3.5 text-center font-medium text-gray-900">
                           {formatNumber(supplier.TotalPrice || supplier.totalPrice || supplier.total_price)}
                         </td>
                         <td className="px-5 py-3.5">

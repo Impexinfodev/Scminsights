@@ -109,9 +109,11 @@ export default function ForgotPasswordPage() {
     setIsLoading(true);
 
     try {
-      await axios.post(`${backendUrl}/forgot-password`, {
-        email: email.toLowerCase(),
-      });
+      await axios.post(
+        `${backendUrl}/forgot-password`,
+        { email: email.toLowerCase() },
+        { headers: { "X-Requested-With": "XMLHttpRequest", "X-Client": "scm-insights" } }
+      );
 
       setIsSubmitted(true);
       showToast("Email Sent!", "Check your inbox for password reset instructions.", "success");

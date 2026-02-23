@@ -218,7 +218,9 @@ export default function SignupPage() {
         licenseType: "trial",
       };
 
-      await axios.post(`${backendUrl}/signup`, signupData);
+      await axios.post(`${backendUrl}/signup`, signupData, {
+        headers: { "X-Requested-With": "XMLHttpRequest", "X-Client": "scm-insights" },
+      });
 
       showToast(
         "Account Created!",

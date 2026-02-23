@@ -135,7 +135,8 @@ function ResetPasswordContent() {
     try {
       await axios.post(
         `${backendUrl}/api/auth/reset-password?token=${encodeURIComponent(token)}`,
-        { new_password: password }
+        { new_password: password },
+        { headers: { "X-Requested-With": "XMLHttpRequest", "X-Client": "scm-insights" } }
       );
       setIsSuccess(true);
       showToast("Password reset", "You can now sign in with your new password.", "success");

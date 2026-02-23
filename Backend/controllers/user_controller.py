@@ -1,7 +1,10 @@
 # SCM-INSIGHTS User controller: license, supplier-countries, hscodes (DB-backed)
+import logging
 from flask import Blueprint, request, jsonify
 
 from middlewares.auth_middleware import require_auth
+
+logger = logging.getLogger(__name__)
 from repositories.repo_provider import RepoProvider
 from utils.constants import SUPPLIER_COUNTRIES
 
@@ -37,7 +40,7 @@ def get_user_license_info():
             }
         return jsonify(_serialize_license(license_info)), 200
     except Exception as e:
-        print(f"Error in get_user_license_info: {e}")
+        logger.error("get_user_license_info failed: %s", type(e).__name__, exc_info=False)
         return jsonify(_serialize_license({
             "LicenseType": "TRIAL",
             "NumberOfRowsPerPeriod": 10,
@@ -67,5 +70,5 @@ def get_hscodes_descriptions():
         data = {r["code"]: r["description"] for r in rows if r.get("code")}
         return jsonify(data), 200
     except Exception as e:
-        print(f"Error in get_hscodes_descriptions: {e}")
+        logger.error("get_hscodes_descriptions failed: %s", type(e).__name__, exc_info=False)
         return jsonify({}), 200

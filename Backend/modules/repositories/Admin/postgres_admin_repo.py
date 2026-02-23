@@ -9,6 +9,7 @@ from modules.db.postgres_models import (
     CREATE_USER_PROFILE_TABLE,
     CREATE_LICENSE_TABLE,
     CREATE_SESSION_TABLE,
+    SESSION_INDEX_STATEMENTS,
     CREATE_USER_TOKEN_TABLE,
     CREATE_ACTIVATION_TABLE,
     CREATE_PASSWORD_RESET_TABLE,
@@ -55,6 +56,11 @@ class PostgresAdminRepository(AdminRepository):
         cursor.execute(CREATE_USER_PROFILE_TABLE)
         cursor.execute(CREATE_LICENSE_TABLE)
         cursor.execute(CREATE_SESSION_TABLE)
+        for stmt in SESSION_INDEX_STATEMENTS:
+            try:
+                cursor.execute(stmt)
+            except Exception:
+                pass
         cursor.execute(CREATE_USER_TOKEN_TABLE)
         cursor.execute(CREATE_ACTIVATION_TABLE)
         cursor.execute(CREATE_PASSWORD_RESET_TABLE)
@@ -172,7 +178,10 @@ class PostgresAdminRepository(AdminRepository):
         cursor.execute(DROP_USER_PROFILE_TABLE)
 
     @with_connection(commit=False)
-    def get_all_users(self, cursor, sort_order="asc", search_term=None):
+    def get_all_users(self, cursor, sort_order="asc", search_term=None, page=1, page_size=50):
+        page = max(1, page)
+        page_size = max(1, min(100, page_size))
+        offset = (page - 1) * page_size
         order = "ASC" if str(sort_order).lower() == "asc" else "DESC"
         where = ""
         params = []
@@ -180,6 +189,10 @@ class PostgresAdminRepository(AdminRepository):
             term = f"%{search_term.strip()}%"
             where = " WHERE (LOWER(EmailId) LIKE LOWER(%s) OR LOWER(Name) LIKE LOWER(%s) OR LOWER(CompanyName) LIKE LOWER(%s))"
             params = [term, term, term]
+        count_sql = f"SELECT COUNT(*) FROM UserProfile {where}"
+        cursor.execute(count_sql, tuple(params) if params else None)
+        total = (cursor.fetchone() or [0])[0]
+        base_params = tuple(params) if params else ()
         cursor.execute(
             f"""
             SELECT UserId, LicenseType, EmailId, Name, CompanyName, PhoneNumberCountryCode, PhoneNumber,
@@ -187,8 +200,9 @@ class PostgresAdminRepository(AdminRepository):
             FROM UserProfile
             {where}
             ORDER BY UserId {order}
+            LIMIT %s OFFSET %s
             """,
-            tuple(params) if params else None,
+            base_params + (page_size, offset),
         )
         rows = cursor.fetchall() or []
         return [
@@ -206,7 +220,18 @@ class PostgresAdminRepository(AdminRepository):
                 "RecordsConsumed": 0,
             }
             for r in rows
-        ]
+        ], total
+
+    @with_connection(commit=False)
+    def get_users_overview_counts(self, cursor):
+        """Returns (total_users, active_users) for admin overview."""
+        cursor.execute(
+            "SELECT COUNT(*), COUNT(*) FILTER (WHERE activationStatus = TRUE) FROM UserProfile"
+        )
+        row = cursor.fetchone()
+        if not row:
+            return 0, 0
+        return int(row[0]) if row[0] is not None else 0, int(row[1]) if row[1] is not None else 0
 
     @with_connection(commit=False)
     def is_user_admin(self, cursor, user_id):

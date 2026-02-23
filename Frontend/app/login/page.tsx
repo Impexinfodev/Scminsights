@@ -151,6 +151,12 @@ export default function LoginPage() {
       return;
     }
 
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+    if (!backendUrl?.trim()) {
+      showToast("Configuration Error", "Backend URL is not configured. Please check your environment.", "error");
+      return;
+    }
+
     setIsLoading(true);
 
     if (rememberMe) {
@@ -265,7 +271,7 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-5">
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-2">
                 Email Address
               </label>
               <div className="relative">
@@ -273,24 +279,30 @@ export default function LoginPage() {
                   <HugeiconsIcon icon={Mail01Icon} size={18} className="text-gray-400" />
                 </div>
                 <input
+                  id="login-email"
                   type="email"
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="name@company.com"
+                  autoComplete="email"
+                  aria-invalid={!!(errors.email && errors.email !== " ")}
+                  aria-describedby={errors.email && errors.email !== " " ? "login-email-error" : undefined}
                   className={`block w-full h-12 pl-12 pr-4 border ${errors.email ? "border-red-300" : "border-gray-200"
                     } rounded-xl text-sm placeholder-gray-400 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all`}
                 />
               </div>
               {errors.email && errors.email !== " " && (
-                <p className="mt-1.5 text-sm text-red-600">{errors.email}</p>
+                <p id="login-email-error" className="mt-1.5 text-sm text-red-600" role="alert">
+                  {errors.email}
+                </p>
               )}
             </div>
 
             {/* Password */}
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-medium text-gray-700">
+                <label htmlFor="login-password" className="block text-sm font-medium text-gray-700">
                   Password
                 </label>
                 <Link href="/forgot-password" className="text-sm font-semibold text-blue-600 hover:text-blue-700">
@@ -302,11 +314,15 @@ export default function LoginPage() {
                   <HugeiconsIcon icon={LockPasswordIcon} size={18} className="text-gray-400" />
                 </div>
                 <input
+                  id="login-password"
                   type={showPassword ? "text" : "password"}
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="Enter your password"
+                  autoComplete="current-password"
+                  aria-invalid={!!(errors.password && errors.password !== " ")}
+                  aria-describedby={errors.password && errors.password !== " " ? "login-password-error" : undefined}
                   className={`block w-full h-12 pl-12 pr-12 border ${errors.password ? "border-red-300" : "border-gray-200"
                     } rounded-xl text-sm placeholder-gray-400 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all`}
                 />
@@ -314,12 +330,15 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   <HugeiconsIcon icon={showPassword ? ViewOffIcon : ViewIcon} size={18} />
                 </button>
               </div>
               {errors.password && errors.password !== " " && (
-                <p className="mt-1.5 text-sm text-red-600">{errors.password}</p>
+                <p id="login-password-error" className="mt-1.5 text-sm text-red-600" role="alert">
+                  {errors.password}
+                </p>
               )}
             </div>
 
@@ -337,10 +356,11 @@ export default function LoginPage() {
               </label>
             </div>
 
-            {/* Submit */}
+            {/* Submit - disabled when loading to prevent double submit */}
             <button
               type="submit"
               disabled={isLoading}
+              aria-busy={isLoading}
               className="w-full h-12 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
