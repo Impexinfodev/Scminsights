@@ -28,13 +28,15 @@ def create_app(config_override=None):
         app.config.update(config_override)
 
     limiter.init_app(app)
-
+    print(f"   CORS Origins: {CORS_ORIGINS}")
     CORS(
         app,
-        origins=CORS_ORIGINS,
-        supports_credentials=True,
-        allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Session-Token", "X-Client"],
-        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        resources={r"/*": {
+            "origins": CORS_ORIGINS,
+            "supports_credentials": True,
+            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Session-Token", "X-Client", "X-Request-Timestamp", "X-Request-Nonce", "X-Client-Version", "X-Request-Source"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        }},
     )
 
     db_config = get_database_config()
@@ -81,6 +83,18 @@ def create_app(config_override=None):
     app.add_url_rule("/signup", view_func=limiter.limit("5/minute")(signup), methods=["POST"])
     app.add_url_rule("/logout", view_func=logout, methods=["POST"])
     app.add_url_rule("/forgot-password", view_func=limiter.limit("5/minute")(forgot_password), methods=["POST"])
+
+    @app.after_request
+    def add_cors_headers(response):
+        # Already handled by Flask-CORS for normal requests, 
+        # but this ensures headers are present even on hard crashes or if CORS fails
+        origin = request.headers.get("Origin")
+        if origin in CORS_ORIGINS:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Session-Token, X-Client, X-Request-Timestamp, X-Request-Nonce, X-Client-Version, X-Request-Source"
+        return response
 
     return app
 

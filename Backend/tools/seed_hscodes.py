@@ -40,11 +40,7 @@ def main():
             )
             existing = cur.fetchone()[0]
             if existing > 0:
-                print(f"HSCodeDescription already has {existing} rows. Truncate first to re-seed, or exit.")
-                ans = input("Truncate and re-seed? [y/N]: ").strip().lower()
-                if ans != "y":
-                    print("Exiting.")
-                    return
+                print(f"HSCodeDescription already has {existing} rows. Truncating to re-seed...")
                 cur.execute("TRUNCATE TABLE HSCodeDescription RESTART IDENTITY")
 
             rows = []

@@ -13,7 +13,10 @@ def with_connection(commit=False):
                         if commit:
                             conn.commit()
                 except Exception as e:
-                    conn.rollback()
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
                     raise e
             return result
         return wrapper

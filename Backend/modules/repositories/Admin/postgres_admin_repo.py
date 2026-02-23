@@ -40,6 +40,7 @@ class PostgresAdminRepository(AdminRepository):
             _conninfo(db_host, db_port, db_name, db_user, db_password),
             min_size=1,
             max_size=10,
+            check=ConnectionPool.check_connection,
         )
 
     def close(self):
@@ -66,21 +67,32 @@ class PostgresAdminRepository(AdminRepository):
         cursor.execute(CREATE_PASSWORD_RESET_TABLE)
         cursor.execute(CREATE_CONTACT_TABLE)
         cursor.execute(CREATE_HS_CODE_TABLE)
+        cursor.connection.commit()
         for stmt in HS_CODE_INDEX_STATEMENTS:
             try:
                 cursor.execute(stmt)
+                cursor.connection.commit()
             except Exception:
+                cursor.connection.rollback()
                 pass
+        
         cursor.execute(CREATE_SIMS_DIRECTORY_TABLE)
+        cursor.connection.commit()
         try:
             cursor.execute("ALTER TABLE SimsDirectory ADD COLUMN IecCode VARCHAR(50)")
+            cursor.connection.commit()
         except Exception:
+            cursor.connection.rollback()
             pass
+            
         for stmt in SIMS_DIRECTORY_INDEX_STATEMENTS:
             try:
                 cursor.execute(stmt)
+                cursor.connection.commit()
             except Exception:
+                cursor.connection.rollback()
                 pass
+        
         # SimsDirectory: no seed. Remove legacy dummy rows if present (exact match).
         try:
             for _email in (

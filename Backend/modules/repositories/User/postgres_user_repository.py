@@ -49,6 +49,7 @@ class PostgresUserRepository(UserRepository):
             _conninfo(db_host, db_port, db_name, db_user, db_password),
             min_size=1,
             max_size=10,
+            check=ConnectionPool.check_connection,
         )
 
     @with_connection(commit=False)

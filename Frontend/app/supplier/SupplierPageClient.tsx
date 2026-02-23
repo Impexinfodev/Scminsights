@@ -126,10 +126,12 @@ export default function SupplierPageClient() {
   const [year, setYear] = useState<number | "">("");
   const [availableYears, setAvailableYears] = useState<number[]>([]);
   const [isYearsLoading, setIsYearsLoading] = useState(false);
+  const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
   const yearRef = useRef<HTMLDivElement>(null);
 
   // AbortController to cancel in-flight fetch when filters/page change (avoid race)
   const fetchAbortRef = useRef<AbortController | null>(null);
+  const yearsCancelledRef = useRef(false);
 
   // Sort By dropdown state — values match /api/trade/top sort_by
   const [sortBy, setSortBy] = useState("total_price");
@@ -174,6 +176,9 @@ export default function SupplierPageClient() {
       }
       if (sortByRef.current && !sortByRef.current.contains(event.target as Node)) {
         setIsSortByDropdownOpen(false);
+      }
+      if (yearRef.current && !yearRef.current.contains(event.target as Node)) {
+        setIsYearDropdownOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -267,9 +272,9 @@ export default function SupplierPageClient() {
     }
   };
 
-  // Fetch available years for current HS code (trade API). Call from effect and when Year dropdown is opened.
+  // Fetch available years for current HS code (trade API). Call from effect.
   const fetchAvailableYears = useCallback(
-    async (signal?: AbortSignal) => {
+    async (cancelledRef: React.MutableRefObject<boolean>) => {
       const code = validateHsCode(hsCode);
       if (code.length < 2) {
         setAvailableYears([]);
@@ -279,17 +284,17 @@ export default function SupplierPageClient() {
       const url = `${BACKEND_URL}/api/trade/years?${new URLSearchParams({ trade_type: "exporter", hs_code: code })}`;
       setIsYearsLoading(true);
       try {
-        const res = await fetch(url, { signal: signal ?? null });
+        const res = await fetch(url);
         const json = await res.json();
+        if (cancelledRef.current) return;
         if (!res.ok) throw new Error(json?.error || "Failed to load years");
         setAvailableYears(Array.isArray(json?.data) ? json.data : []);
       } catch (e) {
-        if ((e as Error).name !== "AbortError") {
-          setAvailableYears([]);
-          setToast({ message: "Could not load years. Check HS code and try again.", type: "warning" });
-        }
+        if (cancelledRef.current) return;
+        setAvailableYears([]);
+        setToast({ message: "Could not load years. Check HS code and try again.", type: "warning" });
       } finally {
-        setIsYearsLoading(false);
+        if (!cancelledRef.current) setIsYearsLoading(false);
       }
     },
     [hsCode, BACKEND_URL]
@@ -301,9 +306,11 @@ export default function SupplierPageClient() {
       setAvailableYears([]);
       return;
     }
-    const ac = new AbortController();
-    fetchAvailableYears(ac.signal);
-    return () => ac.abort();
+    yearsCancelledRef.current = false;
+    fetchAvailableYears(yearsCancelledRef);
+    return () => {
+      yearsCancelledRef.current = true;
+    };
   }, [hsCode, fetchAvailableYears]);
 
   // Fetch top suppliers from trade API (GET /api/trade/top)
@@ -465,59 +472,7 @@ export default function SupplierPageClient() {
           className="card p-5 mb-6"
         >
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {/* Country Dropdown */}
-            <div className="relative" ref={countryRef}>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Country</label>
-              <div className="relative">
-                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10">
-                  <HugeiconsIcon icon={Globe02Icon} size={16} />
-                </div>
-                <input
-                  type="text"
-                  value={country}
-                  onChange={(e) => handleCountryChange(e.target.value)}
-                  onFocus={() => setIsCountryDropdownOpen(true)}
-                  placeholder={isCountryLoading ? "Loading..." : "Select country"}
-                  autoComplete="off"
-                  className="w-full h-11 pl-10 pr-10 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={() => setIsCountryDropdownOpen(!isCountryDropdownOpen)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <HugeiconsIcon icon={ArrowDown01Icon} size={16} className={`transition-transform ${isCountryDropdownOpen ? "rotate-180" : ""}`} />
-                </button>
-
-                {/* Country Dropdown */}
-                <AnimatePresence>
-                  {isCountryDropdownOpen && filteredCountries.length > 0 && (
-                    <motion.ul
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="absolute w-full bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto mt-1"
-                    >
-                      {filteredCountries.slice(0, 50).map((c, index) => (
-                        <li
-                          key={index}
-                          onClick={() => {
-                            setCountry(c);
-                            setIsCountryDropdownOpen(false);
-                          }}
-                          className={`px-4 py-2.5 cursor-pointer hover:bg-teal-50 text-sm text-gray-700 transition-colors ${country === c ? "bg-teal-50 text-teal-600 font-medium" : ""
-                            }`}
-                        >
-                          {c}
-                        </li>
-                      ))}
-                    </motion.ul>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
-
-            {/* HS Code Dropdown */}
+            {/* 1. HS Code Dropdown */}
             <div className="relative" ref={hsCodeRef}>
               <label className="block text-sm font-medium text-gray-700 mb-2">HS Code</label>
               <div className="relative">
@@ -569,45 +524,70 @@ export default function SupplierPageClient() {
               </div>
             </div>
 
-            {/* Year (optional) */}
-            <div className="relative" ref={yearRef}>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Year</label>
+            {/* 2. Country Dropdown */}
+            <div className="relative" ref={countryRef}>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Country</label>
               <div className="relative">
-                <select
-                  value={year === "" ? "" : year}
-                  onChange={(e) => setYear(e.target.value === "" ? "" : Number(e.target.value))}
-                  onFocus={() => { if (validateHsCode(hsCode).length >= 2) fetchAvailableYears(); }}
-                  className="w-full h-11 pl-4 pr-10 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-all appearance-none cursor-pointer"
-                >
-                  <option value="">All years</option>
-                  {validateHsCode(hsCode).length < 2 && (
-                    <option disabled>Enter HS code (2+ digits) to load years</option>
-                  )}
-                  {isYearsLoading && <option disabled>Loading years...</option>}
-                  {!isYearsLoading && availableYears.map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                  <HugeiconsIcon icon={ArrowDown01Icon} size={16} />
+                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10">
+                  <HugeiconsIcon icon={Globe02Icon} size={16} />
                 </div>
+                <input
+                  type="text"
+                  value={country}
+                  onChange={(e) => handleCountryChange(e.target.value)}
+                  onFocus={() => setIsCountryDropdownOpen(true)}
+                  placeholder={isCountryLoading ? "Loading..." : "Select country"}
+                  autoComplete="off"
+                  className="w-full h-11 pl-10 pr-10 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsCountryDropdownOpen(!isCountryDropdownOpen)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <HugeiconsIcon icon={ArrowDown01Icon} size={16} className={`transition-transform ${isCountryDropdownOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {/* Country Dropdown */}
+                <AnimatePresence>
+                  {isCountryDropdownOpen && filteredCountries.length > 0 && (
+                    <motion.ul
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute w-full bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto mt-1"
+                    >
+                      {filteredCountries.slice(0, 50).map((c, index) => (
+                        <li
+                          key={index}
+                          onClick={() => {
+                            setCountry(c);
+                            setIsCountryDropdownOpen(false);
+                          }}
+                          className={`px-4 py-2.5 cursor-pointer hover:bg-teal-50 text-sm text-gray-700 transition-colors ${country === c ? "bg-teal-50 text-teal-600 font-medium" : ""
+                            }`}
+                        >
+                          {c}
+                        </li>
+                      ))}
+                    </motion.ul>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
 
-            {/* Sort By Custom Dropdown */}
+            {/* 3. Sort By Custom Dropdown */}
             <div className="relative" ref={sortByRef}>
               <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setIsSortByDropdownOpen(!isSortByDropdownOpen)}
-                  className="w-full h-11 px-4 pr-10 text-sm text-left bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-all cursor-pointer"
+                  className="w-full h-11 px-4 pr-10 text-sm text-left bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-all cursor-pointer flex items-center justify-between"
                 >
                   {sortByOptions.find(opt => opt.value === sortBy)?.label || "Select"}
+                  <HugeiconsIcon icon={ArrowDown01Icon} size={16} className={`text-gray-400 shrink-0 ml-2 transition-transform ${isSortByDropdownOpen ? "rotate-180" : ""}`} />
                 </button>
-                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                  <HugeiconsIcon icon={ArrowDown01Icon} size={16} className={`transition-transform ${isSortByDropdownOpen ? "rotate-180" : ""}`} />
-                </div>
 
                 {/* Sort By Dropdown */}
                 <AnimatePresence>
@@ -625,11 +605,59 @@ export default function SupplierPageClient() {
                             setSortBy(option.value);
                             setIsSortByDropdownOpen(false);
                           }}
-                          className={`px-4 py-2.5 cursor-pointer hover:bg-teal-50 text-sm text-gray-700 transition-colors ${
-                            sortBy === option.value ? "bg-teal-50 text-teal-600 font-medium" : ""
-                          }`}
+                          className={`px-4 py-2.5 cursor-pointer hover:bg-teal-50 text-sm text-gray-700 transition-colors ${sortBy === option.value ? "bg-teal-50 text-teal-600 font-medium" : ""
+                            }`}
                         >
                           {option.label}
+                        </li>
+                      ))}
+                    </motion.ul>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+
+            {/* 4. Year Dropdown */}
+            <div className="relative" ref={yearRef}>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Year</label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsYearDropdownOpen(!isYearDropdownOpen)}
+                  className="w-full h-11 px-4 pr-10 text-sm text-left bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-all cursor-pointer flex items-center justify-between"
+                >
+                  <span className={!year && !isYearsLoading ? "text-gray-500" : ""}>
+                    {isYearsLoading ? "Loading years..." : year === "" ? "All years" : String(year)}
+                  </span>
+                  <HugeiconsIcon icon={ArrowDown01Icon} size={16} className={`text-gray-400 shrink-0 ml-2 transition-transform ${isYearDropdownOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                <AnimatePresence>
+                  {isYearDropdownOpen && (
+                    <motion.ul
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute w-full bg-white border border-gray-200 rounded-xl shadow-xl z-50 mt-1 overflow-hidden max-h-56 overflow-y-auto"
+                    >
+                      <li
+                        onClick={() => { setYear(""); setIsYearDropdownOpen(false); }}
+                        className="px-4 py-2.5 cursor-pointer hover:bg-teal-50 text-sm text-gray-700 border-b border-gray-100"
+                      >
+                        All years
+                      </li>
+                      {validateHsCode(hsCode).length < 2 && (
+                        <li className="px-4 py-2.5 text-sm text-gray-400 italic">
+                          Enter HS code (2+ digits) to load years
+                        </li>
+                      )}
+                      {!isYearsLoading && availableYears.map((y) => (
+                        <li
+                          key={y}
+                          onClick={() => { setYear(y); setIsYearDropdownOpen(false); }}
+                          className={`px-4 py-2.5 cursor-pointer hover:bg-teal-50 text-sm ${year === y ? "bg-teal-50 text-teal-600 font-medium" : "text-gray-700"}`}
+                        >
+                          {y}
                         </li>
                       ))}
                     </motion.ul>
@@ -660,7 +688,7 @@ export default function SupplierPageClient() {
             </div>
           </div>
 
-          {/* HS Code description: full-width row below filters */}
+          {/* HS Code description and years loading hint */}
           {hsCode && (() => {
             const selected = hsCodeData.find((item) => item.code === hsCode.trim());
             return selected?.description ? (
@@ -670,6 +698,12 @@ export default function SupplierPageClient() {
               </div>
             ) : null;
           })()}
+          {isYearsLoading && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
+              <HugeiconsIcon icon={Loading03Icon} size={16} className="animate-spin text-teal-500" />
+              <span>Loading available years for this HS code…</span>
+            </div>
+          )}
         </motion.form>
 
         {/* Results Table */}
@@ -743,16 +777,16 @@ export default function SupplierPageClient() {
                         </td>
                         <td className="px-5 py-3.5 text-gray-600">{supplier.Country || supplier.country || "—"}</td>
                         <td className="px-5 py-3.5 text-gray-600">
-                          {formatNumber(supplier.Frequency || supplier.frequency)}
+                          {formatNumber(supplier.Frequency ?? supplier.frequency)}
                         </td>
                         <td className="px-5 py-3.5 text-gray-600">
-                          {formatNumber(supplier.TotalWeight || supplier.totalWeight || supplier.total_weight)}
+                          {formatNumber(supplier.TotalWeight ?? supplier.totalWeight ?? supplier.total_weight)}
                         </td>
                         <td className="px-5 py-3.5 text-gray-600">
-                          {formatNumber(supplier.TotalQuantity || supplier.totalQuantity || supplier.total_quantity)}
+                          {formatNumber(supplier.TotalQuantity ?? supplier.totalQuantity ?? supplier.total_quantity)}
                         </td>
                         <td className="px-5 py-3.5 font-medium text-gray-900">
-                          {formatNumber(supplier.TotalPrice || supplier.totalPrice || supplier.total_price)}
+                          {formatNumber(supplier.TotalPrice ?? supplier.totalPrice ?? supplier.total_price)}
                         </td>
                         <td className="px-5 py-3.5">
                           <HugeiconsIcon icon={LinkSquare01Icon} size={14} className="text-gray-400 group-hover:text-teal-500 transition-colors" />
