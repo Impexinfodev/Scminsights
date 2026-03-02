@@ -4,7 +4,7 @@ import "./globals.css";
 import ClientLayout from "@/components/layout/ClientLayout";
 import ReduxProvider from "@/components/providers/ReduxProvider";
 
-const baseUrl = "https://scminsights.com";
+const baseUrl = "https://scminsights.ai";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -38,8 +38,8 @@ export const metadata: Metadata = {
     "trade data platform",
     "business directory",
   ],
-  authors: [{ name: "SCM INSIGHTS", url: baseUrl }],
-  creator: "SCM INSIGHTS",
+  authors: [{ name: "Aashita Technosoft Pvt. Ltd.", url: "https://aashita.ai" }],
+  creator: "Aashita Technosoft Pvt. Ltd.",
   publisher: "SCM INSIGHTS",
   formatDetection: {
     email: false,
@@ -49,22 +49,6 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
-      { url: "/favicon.ico", sizes: "any" },
-    ],
-    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
-    other: [
-      {
-        rel: "android-chrome",
-        url: "/android-chrome-192x192.png",
-        sizes: "192x192",
-      },
-      {
-        rel: "android-chrome",
-        url: "/android-chrome-512x512.png",
-        sizes: "512x512",
-      },
     ],
   },
   manifest: "/manifest.json",
@@ -75,23 +59,15 @@ export const metadata: Metadata = {
     siteName: "SCM INSIGHTS",
     title: "SCM INSIGHTS | Global Trade Intelligence Platform",
     description:
-      "Access verified buyer and supplier data from 209+ countries. Discover importers, exporters with comprehensive trade analytics. Trusted by 10,000+ businesses.",
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "SCM INSIGHTS - Global Trade Intelligence Platform",
-      },
-    ],
+      "Access verified buyer and supplier data from 209+ countries. Discover importers, exporters with comprehensive trade analytics. A product by Aashita Technosoft Pvt. Ltd.",
   },
   twitter: {
-    card: "summary_large_image",
+    card: "summary",
+    site: "@scminsights",
+    creator: "@scminsights",
     title: "SCM INSIGHTS | Global Trade Intelligence Platform",
     description:
       "Access verified buyer and supplier data from 209+ countries. Find trade partners with comprehensive analytics.",
-    images: ["/og-image.png"],
-    creator: "@scminsights",
   },
   robots: {
     index: true,
@@ -115,20 +91,26 @@ const organizationJsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
   name: "SCM INSIGHTS",
+  legalName: "Aashita Technosoft Pvt. Ltd.",
   url: baseUrl,
-  logo: `${baseUrl}/android-chrome-512x512.png`,
+  logo: `${baseUrl}/favicon.svg`,
   description:
-    "Global Trade Intelligence Platform providing verified buyer and supplier data from 209+ countries",
-  sameAs: [],
+    "Global Trade Intelligence Platform providing verified buyer and supplier data from 209+ countries. A product by Aashita Technosoft Pvt. Ltd.",
+  foundingDate: "2024",
+  sameAs: [
+    "https://www.linkedin.com/company/scminsights",
+    "https://x.com/scminsights",
+  ],
+  parentOrganization: {
+    "@type": "Organization",
+    name: "Aashita Technosoft Pvt. Ltd.",
+    url: "https://aashita.ai",
+  },
   contactPoint: {
     "@type": "ContactPoint",
     contactType: "customer service",
+    url: `${baseUrl}/contact`,
     availableLanguage: ["English"],
-  },
-  potentialAction: {
-    "@type": "SearchAction",
-    target: `${baseUrl}/buyer?q={search_term_string}`,
-    "query-input": "required name=search_term_string",
   },
 };
 
@@ -138,10 +120,18 @@ const websiteJsonLd = {
   name: "SCM INSIGHTS",
   url: baseUrl,
   description:
-    "Access verified buyer and supplier data from 209+ countries. Discover trade partners with comprehensive analytics and contact details.",
+    "Access verified buyer and supplier data from 209+ countries. Discover importers, exporters, and trade partners with comprehensive analytics.",
+  publisher: {
+    "@type": "Organization",
+    name: "Aashita Technosoft Pvt. Ltd.",
+    url: "https://aashita.ai",
+  },
   potentialAction: {
     "@type": "SearchAction",
-    target: `${baseUrl}/buyer?q={search_term_string}`,
+    target: {
+      "@type": "EntryPoint",
+      urlTemplate: `${baseUrl}/buyer?q={search_term_string}`,
+    },
     "query-input": "required name=search_term_string",
   },
 };
@@ -152,15 +142,24 @@ const softwareJsonLd = {
   name: "SCM INSIGHTS",
   applicationCategory: "BusinessApplication",
   operatingSystem: "Web",
+  url: baseUrl,
+  author: {
+    "@type": "Organization",
+    name: "Aashita Technosoft Pvt. Ltd.",
+    url: "https://aashita.ai",
+  },
   offers: {
     "@type": "Offer",
     price: "0",
     priceCurrency: "USD",
+    category: "Free Trial",
   },
   aggregateRating: {
     "@type": "AggregateRating",
     ratingValue: "4.9",
     ratingCount: "2150",
+    bestRating: "5",
+    worstRating: "1",
   },
 };
 
@@ -172,16 +171,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Favicons */}
-        <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-        <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />
-        <link rel="icon" href="/favicon-16x16.png" type="image/png" sizes="16x16" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#2563eb" />
 
-        <link rel="canonical" href={baseUrl} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

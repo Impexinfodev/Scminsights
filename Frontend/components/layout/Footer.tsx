@@ -33,18 +33,32 @@ export default function Footer() {
             {/* Social Icons */}
             <div className="flex gap-2">
               {[
-                { icon: Linkedin01Icon, href: "#" },
-                { icon: NewTwitterIcon, href: "#" },
-                { icon: Mail01Icon, href: "#" },
-              ].map((social, index) => (
-                <a
-                  key={index}
-                  href={social.href}
-                  className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all"
-                >
-                  <HugeiconsIcon icon={social.icon} size={18} />
-                </a>
-              ))}
+                { icon: Linkedin01Icon, href: "https://www.linkedin.com/company/scminsights", label: "LinkedIn", external: true },
+                { icon: NewTwitterIcon, href: "https://x.com/scminsights", label: "X (Twitter)", external: true },
+                { icon: Mail01Icon, href: "/contact", label: "Contact us", external: false },
+              ].map((social, index) =>
+                social.external ? (
+                  <a
+                    key={index}
+                    href={social.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={social.label}
+                    className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all"
+                  >
+                    <HugeiconsIcon icon={social.icon} size={18} />
+                  </a>
+                ) : (
+                  <Link
+                    key={index}
+                    href={social.href}
+                    aria-label={social.label}
+                    className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all"
+                  >
+                    <HugeiconsIcon icon={social.icon} size={18} />
+                  </Link>
+                )
+              )}
             </div>
           </div>
 
@@ -77,8 +91,8 @@ export default function Footer() {
               {[
                 { label: "About Us", href: "/about" },
                 { label: "Contact", href: "/contact" },
-                { label: "Careers", href: "#" },
-                { label: "Blog", href: "#" },
+                { label: "Careers", href: "/contact" },
+                { label: "Blog", href: "/contact" },
               ].map((link) => (
                 <li key={link.label}>
                   <Link
@@ -99,8 +113,8 @@ export default function Footer() {
               {[
                 { label: "Privacy Policy", href: "/policy" },
                 { label: "Terms of Service", href: "/terms-of-use" },
-                { label: "Cookie Policy", href: "#" },
-                { label: "GDPR", href: "#" },
+                { label: "Cookie Policy", href: "/policy" },
+                { label: "GDPR", href: "/policy" },
               ].map((link) => (
                 <li key={link.label}>
                   <Link

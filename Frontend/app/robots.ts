@@ -1,7 +1,7 @@
 import { MetadataRoute } from "next";
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = "https://scminsights.com";
+  const baseUrl = "https://scminsights.ai";
 
   return {
     rules: [
@@ -10,10 +10,15 @@ export default function robots(): MetadataRoute.Robots {
         allow: "/",
         disallow: [
           "/api/",
+          "/admin",
+          "/admin/",
           "/login",
           "/signup",
           "/profile",
+          "/plan",
           "/forgot-password",
+          "/reset-password",
+          "/account-activate",
         ],
       },
     ],

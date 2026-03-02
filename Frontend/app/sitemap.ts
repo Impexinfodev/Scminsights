@@ -1,10 +1,9 @@
 import { MetadataRoute } from "next";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = "https://scminsights.com";
+  const baseUrl = "https://scminsights.ai";
   const currentDate = new Date().toISOString();
 
-  // Main pages with high priority
   const mainPages = [
     { url: "", priority: 1.0, changeFrequency: "daily" as const },
     {
@@ -14,11 +13,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     { url: "/buyer", priority: 0.9, changeFrequency: "daily" as const },
     { url: "/supplier", priority: 0.9, changeFrequency: "daily" as const },
-    { url: "/contact", priority: 0.7, changeFrequency: "monthly" as const },
+    { url: "/plans", priority: 0.8, changeFrequency: "weekly" as const },
     { url: "/about", priority: 0.7, changeFrequency: "monthly" as const },
+    { url: "/contact", priority: 0.7, changeFrequency: "monthly" as const },
   ];
 
-  // Legal pages
   const legalPages = [
     { url: "/policy", priority: 0.3, changeFrequency: "yearly" as const },
     { url: "/terms-of-use", priority: 0.3, changeFrequency: "yearly" as const },

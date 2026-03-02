@@ -30,8 +30,6 @@ interface Supplier {
   name?: string;
   Country?: string;
   country?: string;
-  Frequency?: number;
-  frequency?: number;
   TotalWeight?: number;
   totalWeight?: number;
   total_weight?: number;
@@ -138,7 +136,6 @@ export default function BuyerPageClient() {
   const sortByRef = useRef<HTMLDivElement>(null);
   const sortByOptions = [
     { value: "total_price", label: "Total Value" },
-    { value: "frequency", label: "Frequency" },
     { value: "total_quantity", label: "Quantity" },
     { value: "total_weight", label: "Weight" },
     { value: "total_container_quantity", label: "Containers" },
@@ -363,10 +360,9 @@ export default function BuyerPageClient() {
 
       const list = Array.isArray(json?.data) ? json.data : [];
       setSuppliers(
-        list.map((row: { enterprise?: string; data_country?: string; frequency?: number; total_price?: number; total_quantity?: number; total_weight?: number }) => ({
+        list.map((row: { enterprise?: string; data_country?: string; total_price?: number; total_quantity?: number; total_weight?: number }) => ({
           Name: row.enterprise ?? "",
           Country: row.data_country ?? "",
-          Frequency: row.frequency ?? 0,
           TotalPrice: row.total_price ?? 0,
           TotalQuantity: row.total_quantity ?? 0,
           TotalWeight: row.total_weight ?? 0,
@@ -740,7 +736,6 @@ export default function BuyerPageClient() {
                   <th className="px-5 py-3 text-left font-semibold text-gray-600 w-16">#</th>
                   <th className="px-5 py-3 text-left font-semibold text-gray-600">Name</th>
                   <th className="px-5 py-3 text-center font-semibold text-gray-600">Country</th>
-                  <th className="px-5 py-3 text-center font-semibold text-gray-600">Frequency</th>
                   <th className="px-5 py-3 text-center font-semibold text-gray-600">Weight</th>
                   <th className="px-5 py-3 text-center font-semibold text-gray-600">Qty</th>
                   <th className="px-5 py-3 text-center font-semibold text-gray-600">Value</th>
@@ -750,14 +745,14 @@ export default function BuyerPageClient() {
               <tbody className="divide-y divide-gray-100">
                 {isLoading && pageIndex === 1 ? (
                   <tr>
-                    <td colSpan={8} className="py-20 text-center">
+                    <td colSpan={7} className="py-20 text-center">
                       <HugeiconsIcon icon={Loading03Icon} size={32} className="mx-auto mb-3 text-blue-500 animate-spin" />
                       <p className="text-gray-500">Searching for buyers...</p>
                     </td>
                   </tr>
                 ) : suppliers.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-20 text-center">
+                    <td colSpan={7} className="py-20 text-center">
                       <HugeiconsIcon icon={Building02Icon} size={40} className="mx-auto mb-3 text-gray-300" />
                       <p className="text-gray-500 mb-1">No buyers found</p>
                       <p className="text-gray-400 text-xs">Try adjusting your search filters</p>
@@ -776,9 +771,6 @@ export default function BuyerPageClient() {
                           {supplier.Name || supplier.name || "—"}
                         </td>
                         <td className="px-5 py-3.5 text-center text-gray-600">{supplier.Country || supplier.country || "—"}</td>
-                        <td className="px-5 py-3.5 text-center text-gray-600">
-                          {formatNumber(supplier.Frequency ?? supplier.frequency)}
-                        </td>
                         <td className="px-5 py-3.5 text-center text-gray-600">
                           {formatNumber(supplier.TotalWeight ?? supplier.totalWeight ?? supplier.total_weight)}
                         </td>

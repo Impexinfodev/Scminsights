@@ -81,8 +81,8 @@ export default function PolicyPage() {
             <h2 className="text-xl font-semibold text-gray-900 mb-4">6. Contact Us</h2>
             <p className="text-gray-600 leading-relaxed">
               If you have any questions about this Privacy Policy, please contact us at{" "}
-              <a href="mailto:privacy@scminsights.com" className="text-blue-600 hover:text-blue-700">
-                privacy@scminsights.com
+              <a href="mailto:aashita@aashita.ai" className="text-blue-600 hover:text-blue-700">
+                aashita@aashita.ai
               </a>
             </p>
           </section>

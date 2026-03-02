@@ -121,7 +121,14 @@ export default function Navbar() {
   }, []);
 
   const handleLogout = async () => {
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.trim();
+    if (!backendUrl) {
+      dispatch(logout());
+      setIsProfileOpen(false);
+      setIsOpen(false);
+      router.push("/login");
+      return;
+    }
     const token =
       userData?.session_token ??
       (typeof window !== "undefined"
@@ -130,6 +137,7 @@ export default function Navbar() {
     if (token) {
       try {
         await fetch(`${backendUrl}/logout`, {
+          signal: AbortSignal.timeout(5000),
           method: "POST",
           headers: { "Session-Token": token, "X-Client": "scm-insights" },
         });
@@ -214,6 +222,8 @@ export default function Navbar() {
                 {/* Mobile Menu Button */}
                 <button
                   onClick={() => setIsOpen(!isOpen)}
+                  aria-label={isOpen ? "Close menu" : "Open menu"}
+                  aria-expanded={isOpen}
                   className="lg:hidden p-2.5 text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
                 >
                   <HugeiconsIcon
@@ -238,6 +248,9 @@ export default function Navbar() {
                     <>
                       <button
                         onClick={() => setIsProfileOpen(!isProfileOpen)}
+                        aria-label="User menu"
+                        aria-expanded={isProfileOpen}
+                        aria-haspopup="true"
                         className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 ${
                           isProfileOpen
                             ? "bg-gray-100 border border-gray-200"
@@ -411,6 +424,7 @@ export default function Navbar() {
                 <span className="font-bold text-xl text-gray-900">Menu</span>
                 <button
                   onClick={() => setIsOpen(false)}
+                  aria-label="Close menu"
                   className="p-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 hover:text-gray-900 transition-colors"
                 >
                   <HugeiconsIcon icon={Cancel01Icon} size={20} />

@@ -91,8 +91,8 @@ export default function TermsOfUsePage() {
             <h2 className="text-xl font-semibold text-gray-900 mb-4">7. Contact</h2>
             <p className="text-gray-600 leading-relaxed">
               For any questions regarding these Terms of Service, please contact us at{" "}
-              <a href="mailto:legal@scminsights.com" className="text-blue-600 hover:text-blue-700">
-                legal@scminsights.com
+              <a href="mailto:aashita@aashita.ai" className="text-blue-600 hover:text-blue-700">
+                aashita@aashita.ai
               </a>
             </p>
           </section>

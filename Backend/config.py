@@ -56,8 +56,21 @@ POSTGRES_CONFIG = {
 # Flask
 # ===========================================
 
+def _get_secret_key() -> str:
+    key = get_env("FLASK_SECRET_KEY", "change-this-secret-in-production")
+    if os.environ.get("FLASK_ENV", "development") == "production" and (
+        not key or key == "change-this-secret-in-production"
+    ):
+        raise ValueError(
+            "FLASK_SECRET_KEY must be set to a secure value in production. "
+            "Do not use the default. Set it in .env or environment."
+
+        )
+    return key
+
+
 FLASK_CONFIG = {
-    "SECRET_KEY": get_env("FLASK_SECRET_KEY", "change-this-secret-in-production"),
+    "SECRET_KEY": _get_secret_key(),
     "ENV": get_env("FLASK_ENV", "development"),
     "DEBUG": get_env_bool("FLASK_DEBUG", False),
     "HOST": get_env("FLASK_HOST", "0.0.0.0"),

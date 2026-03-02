@@ -21,11 +21,11 @@ export const metadata: Metadata = {
     title: "Global Suppliers Database | Find Verified Exporters - SCM INSIGHTS",
     description:
       "Search verified suppliers & exporters from 209+ countries. Access supplier contact details & export history.",
-    url: "https://scminsights.com/supplier",
+    url: "https://scminsights.ai/supplier",
     type: "website",
   },
   alternates: {
-    canonical: "https://scminsights.com/supplier",
+    canonical: "https://scminsights.ai/supplier",
   },
 };
 

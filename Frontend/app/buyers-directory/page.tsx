@@ -21,11 +21,11 @@ export const metadata: Metadata = {
     title: "Buyers Directory | Global Importers Database - SCM INSIGHTS",
     description:
       "Browse comprehensive buyers directory with importers worldwide. Filter by country, product, HS code & industry.",
-    url: "https://scminsights.com/buyers-directory",
+    url: "https://scminsights.ai/buyers-directory",
     type: "website",
   },
   alternates: {
-    canonical: "https://scminsights.com/buyers-directory",
+    canonical: "https://scminsights.ai/buyers-directory",
   },
 };
 
