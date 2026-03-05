@@ -764,12 +764,19 @@ export default function SupplierPageClient() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {isLoading && pageIndex === 1 ? (
-                  <tr>
-                    <td colSpan={7} className="py-20 text-center">
-                      <HugeiconsIcon icon={Loading03Icon} size={32} className="mx-auto mb-3 text-teal-500 animate-spin" />
-                      <p className="text-gray-500">Searching for suppliers...</p>
-                    </td>
-                  </tr>
+                  <>
+                    {Array.from({ length: 8 }).map((_, i) => (
+                      <tr key={i} className="animate-pulse">
+                        <td className="px-5 py-4"><div className="h-4 bg-gray-200 rounded w-8 mx-auto" /></td>
+                        <td className="px-5 py-4"><div className="h-4 bg-gray-200 rounded w-40" /></td>
+                        <td className="px-5 py-4"><div className="h-4 bg-gray-200 rounded w-24 mx-auto" /></td>
+                        <td className="px-5 py-4"><div className="h-4 bg-gray-200 rounded w-16 mx-auto" /></td>
+                        <td className="px-5 py-4"><div className="h-4 bg-gray-200 rounded w-20 mx-auto" /></td>
+                        <td className="px-5 py-4"><div className="h-4 bg-gray-200 rounded w-20 mx-auto" /></td>
+                        <td className="px-5 py-4"><div className="h-4 bg-gray-200 rounded w-6 mx-auto" /></td>
+                      </tr>
+                    ))}
+                  </>
                 ) : suppliers.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-20 text-center">

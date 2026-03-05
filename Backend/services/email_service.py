@@ -1,9 +1,12 @@
 # SCM-INSIGHTS Email Service
+import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import List, Optional
 from config import EMAIL_CONFIG
+
+logger = logging.getLogger(__name__)
 
 
 class EmailService:
@@ -36,7 +39,7 @@ class EmailService:
                 server.sendmail(self.smtp_user, to, msg.as_string())
             return True
         except Exception as e:
-            print(f"[EmailService] Failed to send email: {e}")
+            logger.error("[EmailService] Failed to send email: %s", e)
             return False
 
     def send_activation_email(self, email: str, activation_url: str) -> bool:

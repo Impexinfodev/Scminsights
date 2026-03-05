@@ -27,7 +27,7 @@ export default function Footer() {
               </span>
             </Link>
             <p className="text-sm text-gray-500 leading-relaxed mb-6">
-              Global trade intelligence platform helping businesses discover verified partners worldwide.
+              Global trade intelligence platform by Aashita Technosoft Pvt. Ltd. helping businesses discover verified trade partners worldwide.
             </p>
 
             {/* Social Icons */}
@@ -70,7 +70,7 @@ export default function Footer() {
                 { label: "Buyers Directory", href: "/buyers-directory" },
                 { label: "Search Buyers", href: "/buyer" },
                 { label: "Search Suppliers", href: "/supplier" },
-                { label: "Trade Analytics", href: "#" },
+                { label: "Plans & Pricing", href: "/plans" },
               ].map((link) => (
                 <li key={link.label}>
                   <Link
@@ -91,8 +91,7 @@ export default function Footer() {
               {[
                 { label: "About Us", href: "/about" },
                 { label: "Contact", href: "/contact" },
-                { label: "Careers", href: "/contact" },
-                { label: "Blog", href: "/contact" },
+                { label: "HSN Codes", href: "/hsn" },
               ].map((link) => (
                 <li key={link.label}>
                   <Link
@@ -113,8 +112,7 @@ export default function Footer() {
               {[
                 { label: "Privacy Policy", href: "/policy" },
                 { label: "Terms of Service", href: "/terms-of-use" },
-                { label: "Cookie Policy", href: "/policy" },
-                { label: "GDPR", href: "/policy" },
+                { label: "Refund & Cancellation", href: "/refund-policy" },
               ].map((link) => (
                 <li key={link.label}>
                   <Link
@@ -126,6 +124,12 @@ export default function Footer() {
                 </li>
               ))}
             </ul>
+            <div className="mt-5 p-3 bg-white rounded-xl border border-gray-200">
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Payments by <span className="font-semibold text-gray-700">Razorpay</span>.
+                UPI · Net Banking · Cards · Wallets
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -135,11 +139,12 @@ export default function Footer() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <p className="text-sm text-gray-500">
-              &copy; {new Date().getFullYear()} SCM INSIGHTS. All rights reserved.
+              &copy; {new Date().getFullYear()} SCM INSIGHTS by Aashita Technosoft Pvt. Ltd. All rights reserved.
             </p>
             <div className="flex items-center gap-6 text-sm text-gray-500">
               <Link href="/policy" className="hover:text-blue-600 transition-colors">Privacy</Link>
               <Link href="/terms-of-use" className="hover:text-blue-600 transition-colors">Terms</Link>
+              <Link href="/refund-policy" className="hover:text-blue-600 transition-colors">Refunds</Link>
               <Link href="/contact" className="hover:text-blue-600 transition-colors">Contact</Link>
             </div>
           </div>

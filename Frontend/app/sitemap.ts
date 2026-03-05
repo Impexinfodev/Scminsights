@@ -19,8 +19,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
   ];
 
   const legalPages = [
-    { url: "/policy", priority: 0.3, changeFrequency: "yearly" as const },
-    { url: "/terms-of-use", priority: 0.3, changeFrequency: "yearly" as const },
+    { url: "/policy", priority: 0.4, changeFrequency: "yearly" as const },
+    { url: "/terms-of-use", priority: 0.4, changeFrequency: "yearly" as const },
+    { url: "/refund-policy", priority: 0.4, changeFrequency: "yearly" as const },
+    { url: "/hsn", priority: 0.6, changeFrequency: "monthly" as const },
   ];
 
   const allPages = [...mainPages, ...legalPages];

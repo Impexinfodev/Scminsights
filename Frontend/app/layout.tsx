@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ClientLayout from "@/components/layout/ClientLayout";
 import ReduxProvider from "@/components/providers/ReduxProvider";
+import CookieConsent from "@/components/CookieConsent";
 
 const baseUrl = "https://scminsights.ai";
 
@@ -49,20 +50,33 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
   },
   manifest: "/manifest.json",
   openGraph: {
     type: "website",
-    locale: "en_US",
+    locale: "en_IN",
     url: baseUrl,
     siteName: "SCM INSIGHTS",
     title: "SCM INSIGHTS | Global Trade Intelligence Platform",
     description:
       "Access verified buyer and supplier data from 209+ countries. Discover importers, exporters with comprehensive trade analytics. A product by Aashita Technosoft Pvt. Ltd.",
+    images: [
+      {
+        url: `${baseUrl}/og-image.png`,
+        width: 1200,
+        height: 630,
+        alt: "SCM INSIGHTS – Global Trade Intelligence Platform",
+      },
+    ],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     site: "@scminsights",
     creator: "@scminsights",
     title: "SCM INSIGHTS | Global Trade Intelligence Platform",
@@ -151,15 +165,8 @@ const softwareJsonLd = {
   offers: {
     "@type": "Offer",
     price: "0",
-    priceCurrency: "USD",
+    priceCurrency: "INR",
     category: "Free Trial",
-  },
-  aggregateRating: {
-    "@type": "AggregateRating",
-    ratingValue: "4.9",
-    ratingCount: "2150",
-    bestRating: "5",
-    worstRating: "1",
   },
 };
 
@@ -189,9 +196,15 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
         />
       </head>
-      <body className="font-[SFPRO] antialiased bg-white text-gray-900">
+      <body className="font-[SFPRO] antialiased bg-white text-gray-900" suppressHydrationWarning>
+        <noscript>
+          <div style={{ padding: "16px", background: "#fff3cd", color: "#856404", textAlign: "center", fontFamily: "sans-serif" }}>
+            SCM INSIGHTS requires JavaScript to be enabled. Please enable JavaScript in your browser settings and reload the page.
+          </div>
+        </noscript>
         <ReduxProvider>
           <ClientLayout>{children}</ClientLayout>
+          <CookieConsent />
         </ReduxProvider>
       </body>
     </html>

@@ -312,6 +312,12 @@ export default function PlansPageClient() {
           </div>
         )}
 
+        {!loading && plans.length > 0 && (
+          <p className="text-center mt-6 text-sm text-gray-500">
+            Payments processed securely via Razorpay &mdash; UPI · Net Banking · Credit/Debit Cards · Wallets · EMI
+          </p>
+        )}
+
         {isLoggedIn && (
           <motion.p
             initial={{ opacity: 0 }}

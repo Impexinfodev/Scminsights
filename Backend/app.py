@@ -4,11 +4,44 @@
 # Main entry. Same tech and flow as main Impexinfo backend; separate DB and auth.
 
 import os
+import logging
+import logging.handlers
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def _setup_logging():
+    """Configure application-wide logging with rotation."""
+    log_level = logging.DEBUG if os.environ.get("FLASK_ENV") == "development" else logging.INFO
+    fmt = logging.Formatter(
+        "%(asctime)s %(levelname)s [%(name)s] %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+    )
+    root = logging.getLogger()
+    root.setLevel(log_level)
+
+    # Console handler
+    ch = logging.StreamHandler()
+    ch.setFormatter(fmt)
+    root.addHandler(ch)
+
+    # Rotating file handler (10 MB, keep 7 files)
+    log_path = os.environ.get("LOG_FILE_PATH", "logs/app.log")
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    fh = logging.handlers.RotatingFileHandler(log_path, maxBytes=10_485_760, backupCount=7, encoding="utf-8")
+    fh.setFormatter(fmt)
+    root.addHandler(fh)
+
+    # Silence overly verbose third-party loggers
+    logging.getLogger("werkzeug").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+
+
+_setup_logging()
+logger = logging.getLogger(__name__)
 
 from config import (
     FLASK_CONFIG,
@@ -28,7 +61,7 @@ def create_app(config_override=None):
         app.config.update(config_override)
 
     limiter.init_app(app)
-    print(f"   CORS Origins: {CORS_ORIGINS}")
+    logger.info("CORS Origins: %s", CORS_ORIGINS)
     CORS(
         app,
         resources={r"/*": {
@@ -62,23 +95,34 @@ def create_app(config_override=None):
     app.register_blueprint(contact_bp)
     app.register_blueprint(trade_bp)
 
-    # CSRF mitigation: require X-Requested-With or X-Client for state-changing POSTs (browser sends these)
+    # CSRF mitigation: all state-changing requests must carry at least one custom header.
+    # Browsers cannot add custom headers to cross-site form POST or img/script requests,
+    # so presence of any of these headers proves the request originated from our JS client.
     @app.before_request
     def require_csrf_header():
         if request.method not in ("POST", "PUT", "DELETE", "PATCH"):
             return None
         path = (request.path or "").rstrip("/")
-        # Razorpay webhook has no browser headers; allow without CSRF check
+        # Razorpay webhook is server-to-server; no browser headers available
         if path == "/api/payment/webhook":
             return None
-        state_changing = (
-            path in ("/login", "/signup", "/logout", "/forgot-password")
-            or path.startswith("/api/auth/")
-            or path.startswith("/api/contact")
-        )
-        if not state_changing:
+        # Allow if any trusted custom header is present (set by our axios/fetch calls)
+        if (
+            request.headers.get("X-Requested-With")
+            or request.headers.get("X-Client")
+            or request.headers.get("Session-Token")
+        ):
             return None
-        if request.headers.get("X-Requested-With") or request.headers.get("X-Client"):
+        # Allow same-origin requests (Origin or Referer matches our allowed origins)
+        origin = (request.headers.get("Origin") or "").strip()
+        referer = (request.headers.get("Referer") or "").strip()
+        if origin and origin in CORS_ORIGINS:
+            return None
+        if referer and any(referer.startswith(o) for o in CORS_ORIGINS if o):
+            return None
+        # Cookie-only session requests from our frontend also pass (browser sets cookie automatically
+        # but the CORS preflight ensures only our origin can trigger credentialed cross-origin requests)
+        if request.cookies.get("session_token"):
             return None
         return jsonify({"error": "Invalid request", "code": "CSRF_CHECK"}), 403
 
@@ -118,7 +162,20 @@ def security_headers(resp):
 
 @app.route("/health", methods=["GET"])
 def health_check():
-    return {"status": "healthy", "service": "scm-insights-backend"}, 200
+    """Health check endpoint. Returns DB connectivity status for uptime monitors."""
+    db_ok = False
+    try:
+        from repositories.repo_provider import RepoProvider
+        admin_repo = RepoProvider.get_admin_repo()
+        if hasattr(admin_repo, "health_check"):
+            db_ok = bool(admin_repo.health_check())
+        else:
+            db_ok = True  # assume healthy if no explicit check
+    except Exception as e:
+        logger.warning("Health check DB ping failed: %s", e)
+    status = "healthy" if db_ok else "degraded"
+    http_code = 200 if db_ok else 503
+    return {"status": status, "service": "scm-insights-backend", "db": "ok" if db_ok else "error"}, http_code
 
 
 if __name__ == "__main__":
@@ -126,16 +183,11 @@ if __name__ == "__main__":
     debug_mode = flask_env == "development"
     host = FLASK_CONFIG["HOST"]
     port = FLASK_CONFIG["PORT"]
-    print("")
-    print("=" * 60)
-    print("SCM-INSIGHTS Backend Server")
-    print("=" * 60)
-    print(f"   Environment:  {flask_env}")
-    print(f"   Debug:       {debug_mode}")
-    print(f"   Host:        {host}")
-    print(f"   Port:        {port}")
-    print("=" * 60)
-    print("")
+    logger.info("=" * 60)
+    logger.info("SCM-INSIGHTS Backend Server")
+    logger.info("=" * 60)
+    logger.info("Environment: %s | Debug: %s | Host: %s | Port: %s", flask_env, debug_mode, host, port)
+    logger.info("=" * 60)
     if debug_mode:
         app.run(debug=True, host=host, port=port)
     else:

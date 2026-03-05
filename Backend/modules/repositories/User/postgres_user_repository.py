@@ -301,6 +301,25 @@ class PostgresUserRepository(UserRepository):
             info["LicenseValidTill"] = datetime.max.replace(tzinfo=timezone.utc)
         return _normalize_license_for_api(info)
 
+    @with_connection(commit=True)
+    def update_profile(self, cursor, user_id, name=None, company_name=None, phone_number=None, phone_country_code=None, gst=None):
+        fields, values = [], []
+        if name is not None:
+            fields.append("Name = %s"); values.append(name)
+        if company_name is not None:
+            fields.append("CompanyName = %s"); values.append(company_name)
+        if phone_number is not None:
+            fields.append("PhoneNumber = %s"); values.append(phone_number)
+        if phone_country_code is not None:
+            fields.append("PhoneNumberCountryCode = %s"); values.append(phone_country_code)
+        if gst is not None:
+            fields.append("gst = %s"); values.append(gst if gst else None)
+        if not fields:
+            return False
+        values.append(user_id)
+        cursor.execute(f"UPDATE UserProfile SET {', '.join(fields)} WHERE UserId = %s", values)
+        return True
+
     @with_connection(commit=False)
     def get_tokens(self, cursor, user_id):
         cursor.execute(

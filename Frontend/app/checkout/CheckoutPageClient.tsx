@@ -185,6 +185,9 @@ export default function CheckoutPageClient() {
                   >
                     Pay ₹{orderPayload.amount_rupees.toLocaleString("en-IN")} – Continue to Razorpay
                   </button>
+                  <p className="text-center text-xs text-gray-500">
+                    Pay via UPI · Net Banking · Cards · Wallets · EMI
+                  </p>
                   <Link
                     href="/plans"
                     className="block text-center text-sm text-gray-500 hover:text-gray-700"

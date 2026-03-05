@@ -1,8 +1,12 @@
 # SCM-INSIGHTS User controller: license, supplier-countries, hscodes (DB or CSV)
+import re
 import logging
 from flask import Blueprint, request, jsonify
 
 from middlewares.auth_middleware import require_auth
+
+# GSTIN format: 2-digit state code + 10-char PAN + 1 entity digit + 1 char + Z + 1 check char
+_GSTIN_RE = re.compile(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$")
 
 logger = logging.getLogger(__name__)
 from repositories.repo_provider import RepoProvider
@@ -21,6 +25,62 @@ def _serialize_license(license_info):
     if lt is not None and hasattr(lt, "isoformat"):
         out["LicenseValidTill"] = lt.isoformat()
     return out
+
+
+@user_bp.route("/api/profile", methods=["GET"])
+@require_auth
+def get_profile():
+    try:
+        user_repo = RepoProvider.get_user_repo()
+        user = user_repo.get_user_by_id(request.user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        return jsonify({
+            "name": user.get("Name") or "",
+            "email": user.get("EmailId") or "",
+            "companyName": user.get("CompanyName") or "",
+            "phoneNumber": user.get("PhoneNumber") or "",
+            "phoneCountryCode": user.get("PhoneNumberCountryCode") or "+91",
+            "gstin": user.get("Gst") or "",
+        }), 200
+    except Exception as e:
+        logger.error("get_profile failed: %s", type(e).__name__, exc_info=False)
+        return jsonify({"error": "Failed to fetch profile"}), 500
+
+
+@user_bp.route("/api/profile", methods=["PUT"])
+@require_auth
+def update_profile():
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    company_name = (data.get("companyName") or "").strip()
+    phone_number = (data.get("phoneNumber") or "").strip()
+    phone_country_code = (data.get("phoneCountryCode") or "+91").strip()
+    gstin = (data.get("gstin") or "").strip().upper()
+
+    if name and len(name) > 200:
+        return jsonify({"error": "Name too long"}), 400
+    if company_name and len(company_name) > 300:
+        return jsonify({"error": "Company name too long"}), 400
+    if gstin and not _GSTIN_RE.match(gstin):
+        return jsonify({"error": "Invalid GSTIN format"}), 400
+
+    try:
+        user_repo = RepoProvider.get_user_repo()
+        updated = user_repo.update_profile(
+            request.user_id,
+            name=name or None,
+            company_name=company_name or None,
+            phone_number=phone_number or None,
+            phone_country_code=phone_country_code or None,
+            gst=gstin if gstin is not None else None,
+        )
+        if not updated:
+            return jsonify({"error": "No fields to update"}), 400
+        return jsonify({"message": "Profile updated successfully"}), 200
+    except Exception as e:
+        logger.error("update_profile failed: %s", type(e).__name__, exc_info=False)
+        return jsonify({"error": "Failed to update profile"}), 500
 
 
 @user_bp.route("/userLicenseInfo", methods=["GET"])

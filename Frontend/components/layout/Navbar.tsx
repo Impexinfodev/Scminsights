@@ -179,7 +179,7 @@ export default function Navbar() {
             className={`w-full px-4 sm:px-6 lg:px-8 ${isAdminRoute ? "" : "max-w-7xl mx-auto"}`}
           >
             <div
-              className={`flex items-center justify-between rounded-2xl px-6 py-3 transition-all duration-300 ${
+              className={`relative flex items-center justify-between rounded-2xl px-6 py-3 transition-all duration-300 ${
                 scrolled
                   ? "bg-white/95 backdrop-blur-xl border border-gray-200 shadow-lg shadow-gray-200/50"
                   : "bg-white/80 backdrop-blur-md border border-gray-100"
@@ -195,6 +195,17 @@ export default function Navbar() {
                   <span className="bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                     INSIGHTS
                   </span>
+                </span>
+              </Link>
+
+              {/* Mobile centered brand name */}
+              <Link
+                href="/"
+                className="absolute left-1/2 -translate-x-1/2 sm:hidden font-logo text-xl tracking-wide pointer-events-auto"
+              >
+                <span className="text-gray-900">SCM</span>
+                <span className="bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                  INSIGHTS
                 </span>
               </Link>
 

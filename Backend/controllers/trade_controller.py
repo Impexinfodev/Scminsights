@@ -94,6 +94,7 @@ def _get_trade_access(license_info, trade_type):
 
 @trade_bp.route("/years", methods=["GET"])
 @require_auth
+@limiter.limit("60 per minute")
 def get_trade_years():
     trade_type, code = _validate_trade_type(request.args.get("trade_type"))
     if code:
@@ -166,6 +167,7 @@ def get_trade_top():
 
 @trade_bp.route("/summary", methods=["GET"])
 @require_auth
+@limiter.limit("60 per minute")
 def get_trade_summary():
     trade_type, code = _validate_trade_type(request.args.get("trade_type"))
     if code:

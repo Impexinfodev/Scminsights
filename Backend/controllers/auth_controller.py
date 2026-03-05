@@ -8,11 +8,13 @@ from middlewares.auth_middleware import require_auth
 from utils.helpers import is_valid_email
 from utils.constants import COUNTRY_NAMES
 from config import FRONTEND_URL
+from extensions import limiter
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 
 @auth_bp.route("/login", methods=["POST"])
+@limiter.limit("10/minute")
 def login():
     from repositories.repo_provider import RepoProvider
     data = request.json or {}
@@ -71,6 +73,7 @@ def logout():
 
 
 @auth_bp.route("/signup", methods=["POST"])
+@limiter.limit("5/minute")
 def signup():
     from repositories.repo_provider import RepoProvider
     data = request.json or {}
@@ -110,7 +113,10 @@ def signup():
 @auth_bp.route("/account-activate", methods=["POST"])
 def activate_account():
     from repositories.repo_provider import RepoProvider
-    token = request.args.get("token", "").strip()
+    # Accept token from POST body (preferred: not logged in server access logs or Referer headers)
+    # Fall back to query param for backwards-compatibility with existing activation email links
+    data = request.json or {}
+    token = (data.get("token") or request.args.get("token") or "").strip()
     if not token:
         return jsonify({"error": "Activation token is required"}), 400
     user_repo = RepoProvider.get_user_repo()
@@ -122,6 +128,7 @@ def activate_account():
 
 
 @auth_bp.route("/resend-activation", methods=["POST"])
+@limiter.limit("3/minute;10/hour")
 def resend_activation():
     from repositories.repo_provider import RepoProvider
     data = request.json or {}
@@ -141,6 +148,7 @@ def resend_activation():
 
 
 @auth_bp.route("/forgot-password", methods=["POST"])
+@limiter.limit("5/minute;20/hour")
 def forgot_password():
     from repositories.repo_provider import RepoProvider
     data = request.json or {}
@@ -161,8 +169,9 @@ def forgot_password():
 @auth_bp.route("/reset-password", methods=["POST"])
 def reset_password():
     from repositories.repo_provider import RepoProvider
-    token = request.args.get("token", "").strip()
     data = request.json or {}
+    # Accept token from POST body (preferred) or query param (backwards-compat for email links)
+    token = (data.get("token") or request.args.get("token") or "").strip()
     new_password = data.get("new_password", "")
     if not token:
         return jsonify({"error": "Reset token is required"}), 400
