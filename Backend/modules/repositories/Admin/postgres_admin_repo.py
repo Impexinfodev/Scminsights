@@ -230,7 +230,7 @@ class PostgresAdminRepository(AdminRepository):
         cursor.execute(
             f"""
             SELECT UserId, LicenseType, EmailId, Name, CompanyName, PhoneNumberCountryCode, PhoneNumber,
-                   gst, activationStatus, LogOnTimeStamp
+                   gst, activationStatus, LogOnTimeStamp, Role
             FROM UserProfile
             {where}
             ORDER BY {order_col} {order}
@@ -251,6 +251,7 @@ class PostgresAdminRepository(AdminRepository):
                 "Gst": r[7],
                 "ActivationStatus": r[8],
                 "CreatedAt": r[9],
+                "Role": r[10] or "USER",
                 "RecordsConsumed": 0,
             }
             for r in rows
@@ -317,6 +318,17 @@ class PostgresAdminRepository(AdminRepository):
         cursor.execute(
             "UPDATE UserProfile SET activationStatus = %s WHERE UserId = %s",
             (activation_status, user_id),
+        )
+
+    @with_connection(commit=True)
+    def update_user_role(self, cursor, user_id, role):
+        """Update user role. Valid roles: USER,  ADMIN."""
+        role = (role or "").strip().upper()
+        if role not in ("USER",  "ADMIN"):
+            raise ValueError("Invalid role. Use USER,  or ADMIN.")
+        cursor.execute(
+            "UPDATE UserProfile SET Role = %s WHERE UserId = %s",
+            (role, user_id),
         )
 
     @with_connection(commit=True)

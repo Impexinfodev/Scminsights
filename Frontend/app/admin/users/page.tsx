@@ -26,6 +26,8 @@ const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 type SortBy = "email" | "name" | "status" | "";
 type StatusFilter = "" | "active" | "inactive";
 
+type UserRole = "USER" | "ADMIN";
+
 interface UserRow {
   UserId?: string;
   EmailId?: string;
@@ -33,6 +35,7 @@ interface UserRow {
   Company?: string;
   LicenseType?: string;
   ActivationStatus?: boolean;
+  Role?: string;
 }
 
 export default function AdminUsersPage() {
@@ -235,6 +238,36 @@ export default function AdminUsersPage() {
       setError(
         (err as { response?: { data?: { error?: string } } })?.response?.data
           ?.error || "Failed to update status",
+      );
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRoleChange = async (emailId: string, newRole: UserRole) => {
+    if (!sessionToken || !backendUrl) return;
+    const currentRole = users.find((u) => (u.EmailId ?? u.UserId) === emailId)?.Role;
+    if (currentRole === newRole) return;
+    setActionLoading(emailId);
+    setError(null);
+    try {
+      await axios.put(
+        `${backendUrl}/api/admin/user/role`,
+        { EmailId: emailId, Role: newRole },
+        {
+          headers: {
+            "Session-Token": sessionToken,
+            "X-Client": "scm-insights",
+            "Content-Type": "application/json",
+          },
+          withCredentials: true,
+        },
+      );
+      fetchUsers(pagination.page);
+    } catch (err: unknown) {
+      setError(
+        (err as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error || "Failed to update role",
       );
     } finally {
       setActionLoading(null);
@@ -472,6 +505,9 @@ export default function AdminUsersPage() {
                       Status <SortIcon col="status" />
                     </button>
                   </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden md:table-cell">
+                    Role
+                  </th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-32">
                     Actions
                   </th>
@@ -481,7 +517,7 @@ export default function AdminUsersPage() {
                 {users.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={4}
+                      colSpan={5}
                       className="px-4 py-8 text-center text-gray-500 text-sm"
                     >
                       No users found.
@@ -520,6 +556,30 @@ export default function AdminUsersPage() {
                           >
                             {isActive ? "Active" : "Inactive"}
                           </span>
+                        </td>
+                        <td className="px-4 py-3 hidden md:table-cell">
+                          <select
+                            value={(u.Role || "USER").toUpperCase()}
+                            onChange={(e) =>
+                              handleRoleChange(
+                                emailId,
+                                e.target.value as UserRole,
+                              )
+                            }
+                            disabled={
+                              loadingThis ||
+                              (user?.user_id ?? user?.user_details?.Email) === emailId
+                            }
+                            className="text-xs font-medium px-2 py-1.5 rounded-lg border border-gray-200 bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+                            title={
+                              (user?.user_id ?? user?.user_details?.Email) === emailId
+                                ? "You cannot change your own role"
+                                : "Change role"
+                            }
+                          >
+                            <option value="USER">User</option>
+                            <option value="ADMIN">Admin</option>
+                          </select>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex flex-row items-center justify-end gap-2">

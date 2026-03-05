@@ -78,7 +78,7 @@ def export_users():
     )
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["Email", "Name", "Company", "Status", "License", "User Id"])
+    writer.writerow(["Email", "Name", "Company", "Status", "License", "Role", "User Id"])
     for u in users:
         writer.writerow([
             u.get("EmailId") or u.get("UserId") or "",
@@ -86,6 +86,7 @@ def export_users():
             u.get("Company") or "",
             "Active" if u.get("ActivationStatus") else "Inactive",
             u.get("LicenseType") or "",
+            u.get("Role") or "USER",
             u.get("UserId") or "",
         ])
     return Response(
@@ -142,6 +143,34 @@ def update_user_status():
     admin_repo = RepoProvider.get_admin_repo()
     admin_repo.update_user_activation_status(user_id, status)
     return jsonify({"message": "User status updated", "EmailId": user_id, "ActivationStatus": status}), 200
+
+
+@admin_bp.route("/user/role", methods=["PUT"])
+@require_auth
+@require_admin
+def update_user_role():
+    """Admin can change user role: USER, or ADMIN."""
+    from repositories.repo_provider import RepoProvider
+    data = request.json or {}
+    user_id = data.get("EmailId", "").strip()
+    role = data.get("Role", "").strip().upper()
+    if not user_id:
+        return jsonify({"error": "EmailId is required"}), 400
+    if role not in ("USER", "ADMIN"):
+        return jsonify({"error": "Role must be USER, or ADMIN"}), 400
+    # Prevent admin from demoting themselves
+    if user_id == getattr(request, "user_id", None):
+        return jsonify({"error": "You cannot change your own role"}), 400
+    user_repo = RepoProvider.get_user_repo()
+    user = user_repo.get_user_by_id(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    admin_repo = RepoProvider.get_admin_repo()
+    try:
+        admin_repo.update_user_role(user_id, role)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"message": "Role updated", "EmailId": user_id, "Role": role}), 200
 
 
 @admin_bp.route("/user", methods=["DELETE"])
