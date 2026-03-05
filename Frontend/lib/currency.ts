@@ -37,3 +37,26 @@ export function getPlanPriceDisplay(
     amount === 0 ? "Free" : `$${Number(amount).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
   return { amount, currency: "USD", formatted };
 }
+
+export type PlanPriceBoth = {
+  inrFormatted: string;
+  usdFormatted: string;
+  inIndia: boolean;
+};
+
+/**
+ * Get both INR and USD display strings and location flag.
+ * Use inIndia to decide: India => show only INR; otherwise => show both.
+ */
+export function getPlanPriceBoth(
+  plan: { Price?: number; PriceINR?: number; PriceUSD?: number }
+): PlanPriceBoth {
+  const inIndia = typeof window !== "undefined" ? isUserInIndia() : false;
+  const inrAmount = plan.PriceINR ?? plan.Price ?? 0;
+  const usdAmount = plan.PriceUSD ?? plan.Price ?? 0;
+  const inrFormatted =
+    inrAmount === 0 ? "Free" : `₹${Number(inrAmount).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+  const usdFormatted =
+    usdAmount === 0 ? "Free" : `$${Number(usdAmount).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  return { inrFormatted, usdFormatted, inIndia };
+}

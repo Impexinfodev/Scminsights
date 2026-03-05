@@ -7,7 +7,7 @@ from services.email_service import EmailService
 from middlewares.auth_middleware import require_auth
 from utils.helpers import is_valid_email
 from utils.constants import COUNTRY_NAMES
-from config import DOMAIN_URL
+from config import FRONTEND_URL
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -100,7 +100,7 @@ def signup():
         "phone_number_country_code": phone_country_code,
     }
     activation_code = user_repo.create_user(user_data)
-    activation_url = f"{DOMAIN_URL}/account-activate?token={activation_code}"
+    activation_url = f"{FRONTEND_URL}/account-activate?token={activation_code}"
     EmailService().send_activation_email(email, activation_url)
     return jsonify({
         "message": "Registration successful. Please check your email to activate your account.",
@@ -135,7 +135,7 @@ def resend_activation():
     if user.get("ActivationStatus", False):
         return jsonify({"error": "Account is already activated"}), 400
     activation_code = user_repo.create_new_activation_link(email)
-    activation_url = f"{DOMAIN_URL}/account-activate?token={activation_code}"
+    activation_url = f"{FRONTEND_URL}/account-activate?token={activation_code}"
     EmailService().send_activation_email(email, activation_url)
     return jsonify({"message": "Activation email sent. Please check your inbox."}), 200
 
@@ -151,7 +151,7 @@ def forgot_password():
     user = user_repo.get_user_by_email(email)
     if user:
         reset_token = user_repo.create_reset_token(user["UserId"])
-        reset_url = f"{DOMAIN_URL}/reset-password?token={reset_token}"
+        reset_url = f"{FRONTEND_URL}/reset-password?token={reset_token}"
         EmailService().send_password_reset_email(email, reset_url)
     return jsonify({
         "message": "If an account exists with this email, a password reset link has been sent.",

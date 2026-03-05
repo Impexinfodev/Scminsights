@@ -86,6 +86,36 @@ DROP_ACTIVATION_TABLE = "DROP TABLE IF EXISTS AccountActivation CASCADE;"
 DROP_PASSWORD_RESET_TABLE = "DROP TABLE IF EXISTS PasswordReset CASCADE;"
 DROP_CONTACT_TABLE = "DROP TABLE IF EXISTS ContactMessage CASCADE;"
 
+# Payment transactions (Razorpay) - INR
+CREATE_PAYMENT_TABLE = """
+CREATE TABLE IF NOT EXISTS PaymentTransaction (
+    Id SERIAL PRIMARY KEY,
+    RazorpayOrderId VARCHAR(255) NOT NULL UNIQUE,
+    RazorpayPaymentId VARCHAR(255),
+    UserId VARCHAR(255) NOT NULL,
+    EmailId VARCHAR(255) NOT NULL,
+    LicenseType VARCHAR(50) NOT NULL,
+    AmountPaise INT NOT NULL,
+    Currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+    Status VARCHAR(50) NOT NULL DEFAULT 'created',
+    SourceWebsite VARCHAR(255),
+    MetadataJson TEXT,
+    CreatedAt TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+"""
+# Add SourceWebsite column to existing PaymentTransaction (run once per env)
+ALTER_PAYMENT_ADD_SOURCE_WEBSITE = """
+ALTER TABLE PaymentTransaction ADD COLUMN IF NOT EXISTS SourceWebsite VARCHAR(255);
+"""
+PAYMENT_INDEX_STATEMENTS = [
+    "CREATE INDEX IF NOT EXISTS idx_payment_user ON PaymentTransaction (UserId);",
+    "CREATE INDEX IF NOT EXISTS idx_payment_created ON PaymentTransaction (CreatedAt DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_payment_status ON PaymentTransaction (Status);",
+    "CREATE INDEX IF NOT EXISTS idx_payment_source_website ON PaymentTransaction (SourceWebsite);",
+]
+DROP_PAYMENT_TABLE = "DROP TABLE IF EXISTS PaymentTransaction CASCADE;"
+
 # HS Code descriptions (seeded from all_hscodes_with_descriptions.csv)
 CREATE_HS_CODE_TABLE = """
 CREATE TABLE IF NOT EXISTS HSCodeDescription (

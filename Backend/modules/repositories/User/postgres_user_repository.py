@@ -19,23 +19,61 @@ TRIAL = "TRIAL"
 
 
 def _normalize_license_for_api(info):
-    """Normalize license JSON to flat shape for /userLicenseInfo (Directory/Buyers/Suppliers or legacy)."""
+    """Normalize license JSON to flat shape for /userLicenseInfo and plan-based access checks."""
     if not info or not isinstance(info, dict):
         return info
-    # New plan shape: Directory.Buyers.Suppliers
+    # Directory
     directory = info.get("Directory") or {}
-    if isinstance(directory, dict) and "Access" in directory:
+    if isinstance(directory, dict) and directory.get("Access") is not None:
         access = directory.get("Access") or "limited"
         info["IsSimsAccess"] = access == "full"
         info["NumberOfRowsPerPeriod"] = directory.get("MaxRows", 10) if access == "limited" else 99999
         info["DirectoryRowsPerSearch"] = directory.get("MaxRowsPerSearch", 5) if access == "limited" else 100
-    # Ensure flat keys exist for frontend
     if "IsSimsAccess" not in info:
         info["IsSimsAccess"] = info.get("IsSimsAccess", False)
     if "NumberOfRowsPerPeriod" not in info:
         info["NumberOfRowsPerPeriod"] = info.get("NumberOfRowsPerPeriod", 10)
     if "DirectoryRowsPerSearch" not in info:
         info["DirectoryRowsPerSearch"] = info.get("DirectoryRowsPerSearch", 5)
+    # Buyers / Suppliers (trade API access)
+    for key, sub in (("Buyers", "Buyers"), ("Suppliers", "Suppliers")):
+        sub_info = info.get(key) or {}
+        if not isinstance(sub_info, dict):
+            sub_info = {}
+        acc = sub_info.get("Access") or "custom"
+        searches = sub_info.get("MaxSearchesPerPeriod")
+        rows = sub_info.get("MaxRowsPerSearch")
+        if acc == "full":
+            info[f"{key}Access"] = "full"
+            info[f"{key}SearchesPerPeriod"] = 99999
+            info[f"{key}RowsPerSearch"] = 100
+        elif (searches or 0) > 0 or (rows or 0) > 0:
+            info[f"{key}Access"] = "limited"
+            info[f"{key}SearchesPerPeriod"] = int(searches) if searches is not None else 5
+            info[f"{key}RowsPerSearch"] = int(rows) if rows is not None else 5
+        else:
+            info[f"{key}Access"] = "none"
+            info[f"{key}SearchesPerPeriod"] = 0
+            info[f"{key}RowsPerSearch"] = 0
+    # HsCode (HS Code search / descriptions)
+    hscode = info.get("HsCode") or {}
+    if not isinstance(hscode, dict):
+        hscode = {}
+    acc = hscode.get("Access") or "full"
+    max_rows = int(hscode.get("MaxRows") or 99999)
+    rows_per_search = int(hscode.get("MaxRowsPerSearch") or 100)
+    if acc == "full":
+        info["HsCodeAccess"] = "full"
+        info["HsCodeMaxRows"] = 99999
+        info["HsCodeMaxRowsPerSearch"] = 100
+    elif acc == "limited":
+        info["HsCodeAccess"] = "limited"
+        info["HsCodeMaxRows"] = max(0, max_rows)
+        info["HsCodeMaxRowsPerSearch"] = min(100, max(0, rows_per_search))
+    else:
+        info["HsCodeAccess"] = "none"
+        info["HsCodeMaxRows"] = 0
+        info["HsCodeMaxRowsPerSearch"] = 0
     return info
 
 

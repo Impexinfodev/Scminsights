@@ -18,6 +18,8 @@ from modules.db.postgres_models import (
     HS_CODE_INDEX_STATEMENTS,
     CREATE_SIMS_DIRECTORY_TABLE,
     SIMS_DIRECTORY_INDEX_STATEMENTS,
+    CREATE_PAYMENT_TABLE,
+    PAYMENT_INDEX_STATEMENTS,
     DROP_USER_PROFILE_TABLE,
     DROP_LICENSE_TABLE,
     DROP_SESSION_TABLE,
@@ -26,6 +28,7 @@ from modules.db.postgres_models import (
     DROP_PASSWORD_RESET_TABLE,
     DROP_CONTACT_TABLE,
     DROP_SIMS_DIRECTORY_TABLE,
+    DROP_PAYMENT_TABLE,
 )
 from psycopg_pool import ConnectionPool
 
@@ -92,7 +95,17 @@ class PostgresAdminRepository(AdminRepository):
             except Exception:
                 cursor.connection.rollback()
                 pass
-        
+
+        cursor.execute(CREATE_PAYMENT_TABLE)
+        cursor.connection.commit()
+        for stmt in PAYMENT_INDEX_STATEMENTS:
+            try:
+                cursor.execute(stmt)
+                cursor.connection.commit()
+            except Exception:
+                cursor.connection.rollback()
+                pass
+
         # SimsDirectory: no seed. Remove legacy dummy rows if present (exact match).
         try:
             for _email in (
@@ -190,17 +203,26 @@ class PostgresAdminRepository(AdminRepository):
         cursor.execute(DROP_USER_PROFILE_TABLE)
 
     @with_connection(commit=False)
-    def get_all_users(self, cursor, sort_order="asc", search_term=None, page=1, page_size=50):
+    def get_all_users(self, cursor, sort_order="asc", search_term=None, page=1, page_size=50,
+                      sort_by=None, activation_status=None):
         page = max(1, page)
         page_size = max(1, min(100, page_size))
         offset = (page - 1) * page_size
         order = "ASC" if str(sort_order).lower() == "asc" else "DESC"
-        where = ""
+        where_parts = []
         params = []
         if search_term and search_term.strip():
             term = f"%{search_term.strip()}%"
-            where = " WHERE (LOWER(EmailId) LIKE LOWER(%s) OR LOWER(Name) LIKE LOWER(%s) OR LOWER(CompanyName) LIKE LOWER(%s))"
-            params = [term, term, term]
+            where_parts.append("(LOWER(EmailId) LIKE LOWER(%s) OR LOWER(Name) LIKE LOWER(%s) OR LOWER(CompanyName) LIKE LOWER(%s))")
+            params.extend([term, term, term])
+        if activation_status is not None:
+            where_parts.append("activationStatus = %s")
+            params.append(activation_status)
+        where = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
+        order_col = "UserId"
+        if sort_by:
+            col_map = {"email": "EmailId", "name": "Name", "status": "activationStatus"}
+            order_col = col_map.get(str(sort_by).lower(), "UserId")
         count_sql = f"SELECT COUNT(*) FROM UserProfile {where}"
         cursor.execute(count_sql, tuple(params) if params else None)
         total = (cursor.fetchone() or [0])[0]
@@ -211,7 +233,7 @@ class PostgresAdminRepository(AdminRepository):
                    gst, activationStatus, LogOnTimeStamp
             FROM UserProfile
             {where}
-            ORDER BY UserId {order}
+            ORDER BY {order_col} {order}
             LIMIT %s OFFSET %s
             """,
             base_params + (page_size, offset),
@@ -244,6 +266,42 @@ class PostgresAdminRepository(AdminRepository):
         if not row:
             return 0, 0
         return int(row[0]) if row[0] is not None else 0, int(row[1]) if row[1] is not None else 0
+
+    @with_connection(commit=False)
+    def get_today_active_count(self, cursor):
+        """Count distinct users who logged in today (LogOnTimeStamp date = today)."""
+        cursor.execute(
+            """SELECT COUNT(*) FROM UserProfile
+               WHERE LogOnTimeStamp IS NOT NULL AND (LogOnTimeStamp AT TIME ZONE 'UTC')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date"""
+        )
+        row = cursor.fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
+
+    @with_connection(commit=False)
+    def get_revenue_stats(self, cursor, months=6):
+        """Returns (total_revenue_paise, list of {month_label, revenue_paise}) for captured payments.
+        month_label is YYYY-MM; last N months including current."""
+        cursor.execute(
+            """SELECT COALESCE(SUM(AmountPaise), 0) FROM PaymentTransaction WHERE Status = %s""",
+            ("captured",),
+        )
+        total = int((cursor.fetchone() or [0])[0])
+        cursor.execute(
+            """SELECT to_char(UpdatedAt AT TIME ZONE 'UTC', 'YYYY-MM') AS month, COALESCE(SUM(AmountPaise), 0)
+               FROM PaymentTransaction WHERE Status = %s AND UpdatedAt >= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - (interval '1 month' * %s)
+               GROUP BY to_char(UpdatedAt AT TIME ZONE 'UTC', 'YYYY-MM')
+               ORDER BY month""",
+            ("captured", months),
+        )
+        rows = cursor.fetchall() or []
+        by_month = [{"month": r[0], "revenue_paise": int(r[1])} for r in rows]
+        return total, by_month
+
+    @with_connection(commit=False)
+    def health_check(self, cursor):
+        """Simple DB health check. Returns True if query succeeds."""
+        cursor.execute("SELECT 1")
+        return cursor.fetchone() is not None
 
     @with_connection(commit=False)
     def is_user_admin(self, cursor, user_id):
@@ -283,6 +341,20 @@ class PostgresAdminRepository(AdminRepository):
                 info = {}
             result.append({"LicenseType": r[0], "LicenseInfo": info})
         return result
+
+    @with_connection(commit=False)
+    def get_license_user_counts(self, cursor):
+        """Returns (total_users, list of {license_type, count}). Includes all LicenseTypes from UserProfile."""
+        cursor.execute(
+            "SELECT COUNT(*) FROM UserProfile"
+        )
+        total = (cursor.fetchone() or [0])[0]
+        cursor.execute(
+            """SELECT LicenseType, COUNT(*) FROM UserProfile GROUP BY LicenseType ORDER BY LicenseType"""
+        )
+        rows = cursor.fetchall() or []
+        by_license = [{"license_type": r[0], "count": int(r[1])} for r in rows]
+        return total, by_license
 
     @with_connection(commit=True)
     def create_license(self, cursor, license_type, license_data):
@@ -435,3 +507,136 @@ class PostgresAdminRepository(AdminRepository):
             {"code": (r[0] or ""), "unit": (r[1] or ""), "description": (r[2] or "")}
             for r in rows
         ]
+
+    @with_connection(commit=True)
+    def insert_payment_transaction(
+        self,
+        cursor,
+        razorpay_order_id,
+        user_id,
+        email_id,
+        license_type,
+        amount_paise,
+        currency="INR",
+        status="created",
+        razorpay_payment_id=None,
+        metadata_json=None,
+        source_website=None,
+    ):
+        cursor.execute(
+            """INSERT INTO PaymentTransaction
+               (RazorpayOrderId, RazorpayPaymentId, UserId, EmailId, LicenseType, AmountPaise, Currency, Status, SourceWebsite, MetadataJson, UpdatedAt)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)""",
+            (
+                razorpay_order_id,
+                razorpay_payment_id,
+                user_id,
+                email_id,
+                license_type,
+                amount_paise,
+                currency,
+                status,
+                (source_website or "").strip() or None,
+                json.dumps(metadata_json) if metadata_json is not None else None,
+            ),
+        )
+
+    @with_connection(commit=True)
+    def update_payment_transaction(
+        self, cursor, razorpay_order_id, razorpay_payment_id, status, metadata_json=None
+    ):
+        cursor.execute(
+            """UPDATE PaymentTransaction
+               SET RazorpayPaymentId = %s, Status = %s, MetadataJson = COALESCE(%s, MetadataJson), UpdatedAt = CURRENT_TIMESTAMP
+               WHERE RazorpayOrderId = %s""",
+            (razorpay_payment_id, status, json.dumps(metadata_json) if metadata_json else None, razorpay_order_id),
+        )
+
+    @with_connection(commit=False)
+    def get_transactions(
+        self,
+        cursor,
+        page=1,
+        page_size=50,
+        sort_order="desc",
+        status=None,
+        user_id=None,
+        from_date=None,
+        to_date=None,
+        website=None,
+    ):
+        order = "DESC" if str(sort_order).lower() == "desc" else "ASC"
+        offset = (max(1, page) - 1) * max(1, min(page_size, 100))
+        limit = max(1, min(page_size, 100))
+        conditions = []
+        params = []
+        if status and str(status).strip():
+            conditions.append("Status = %s")
+            params.append(status.strip())
+        if user_id and str(user_id).strip():
+            conditions.append("(UserId = %s OR EmailId ILIKE %s)")
+            params.append(user_id.strip())
+            params.append(f"%{user_id.strip()}%")
+        if from_date:
+            conditions.append("CreatedAt >= %s")
+            params.append(from_date)
+        if to_date:
+            conditions.append("CreatedAt <= %s")
+            params.append(to_date)
+        if website is not None and str(website).strip():
+            conditions.append("SourceWebsite = %s")
+            params.append(website.strip())
+        where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+        cursor.execute(
+            f"""SELECT Id, RazorpayOrderId, RazorpayPaymentId, UserId, EmailId, LicenseType, AmountPaise, Currency, Status, SourceWebsite, MetadataJson, CreatedAt, UpdatedAt
+                FROM PaymentTransaction {where}
+                ORDER BY CreatedAt {order}
+                LIMIT %s OFFSET %s""",
+            tuple(params) + (limit, offset) if params else (limit, offset),
+        )
+        rows = cursor.fetchall() or []
+        cursor.execute(f"SELECT COUNT(*) FROM PaymentTransaction {where}", tuple(params) if params else None)
+        total = (cursor.fetchone() or [0])[0]
+        def _row_to_dict(r):
+            return {
+                "Id": r[0],
+                "RazorpayOrderId": r[1] or "",
+                "RazorpayPaymentId": r[2] or "",
+                "UserId": r[3] or "",
+                "EmailId": r[4] or "",
+                "LicenseType": r[5] or "",
+                "AmountPaise": r[6],
+                "Currency": r[7] or "INR",
+                "Status": r[8] or "",
+                "SourceWebsite": r[9] or "",
+                "MetadataJson": r[10],
+                "CreatedAt": r[11].isoformat() if r[11] and hasattr(r[11], "isoformat") else str(r[11]),
+                "UpdatedAt": r[12].isoformat() if r[12] and hasattr(r[12], "isoformat") else str(r[12]),
+            }
+        return [_row_to_dict(r) for r in rows], total
+
+    @with_connection(commit=False)
+    def get_transaction_by_order_id(self, cursor, razorpay_order_id):
+        cursor.execute(
+            """SELECT Id, RazorpayOrderId, RazorpayPaymentId, UserId, EmailId, LicenseType, AmountPaise, Currency, Status, SourceWebsite, MetadataJson, CreatedAt, UpdatedAt
+                FROM PaymentTransaction WHERE RazorpayOrderId = %s""",
+            (razorpay_order_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "Id": row[0],
+            "RazorpayOrderId": row[1] or "",
+            "RazorpayPaymentId": row[2] or "",
+            "UserId": row[3] or "",
+            "EmailId": row[4] or "",
+            "LicenseType": row[5] or "",
+            "AmountPaise": row[6],
+            "Currency": row[7] or "INR",
+            "Status": row[8] or "",
+            "SourceWebsite": row[9] or "",
+            "MetadataJson": row[10],
+            "CreatedAt": row[11].isoformat() if row[11] and hasattr(row[11], "isoformat") else str(row[11]),
+            "UpdatedAt": row[12].isoformat() if row[12] and hasattr(row[12], "isoformat") else str(row[12]),
+        }

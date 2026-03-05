@@ -9,7 +9,11 @@ import {
   Loading03Icon,
   Delete02Icon,
   Mail01Icon,
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
 } from "@hugeicons/core-free-icons";
+
+const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 import { useUser } from "@/hooks/useUser";
 import axios from "axios";
 
@@ -25,9 +29,11 @@ type ContactRow = {
 
 export default function AdminContactsPage() {
   const router = useRouter();
-  const { user, isLoading, isLoggedIn, sessionChecked, sessionToken } = useUser({
-    redirectTo: "/login",
-  });
+  const { user, isLoading, isLoggedIn, sessionChecked, sessionToken } = useUser(
+    {
+      redirectTo: "/login",
+    },
+  );
 
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [pagination, setPagination] = useState({
@@ -56,9 +62,12 @@ export default function AdminContactsPage() {
       .get(
         `${backendUrl}/api/admin/contacts?page=${pagination.page}&page_size=${pagination.page_size}&sort_order=desc`,
         {
-          headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" },
+          headers: {
+            "Session-Token": sessionToken,
+            "X-Client": "scm-insights",
+          },
           withCredentials: true,
-        }
+        },
       )
       .then((res) => {
         setContacts(res.data?.contacts ?? []);
@@ -70,7 +79,9 @@ export default function AdminContactsPage() {
         }));
       })
       .catch((err) =>
-        setError(err.response?.data?.error || "Failed to load contact submissions")
+        setError(
+          err.response?.data?.error || "Failed to load contact submissions",
+        ),
       )
       .finally(() => setLoading(false));
   }, [sessionToken, backendUrl, pagination.page, pagination.page_size]);
@@ -86,23 +97,42 @@ export default function AdminContactsPage() {
   useEffect(() => {
     if (!isAdmin || !sessionToken || !backendUrl) return;
     fetchContacts();
-  }, [isAdmin, sessionToken, backendUrl, pagination.page, pagination.page_size, fetchContacts]);
+  }, [
+    isAdmin,
+    sessionToken,
+    backendUrl,
+    pagination.page,
+    pagination.page_size,
+    fetchContacts,
+  ]);
 
   const openReply = (c: ContactRow) => {
     setReplyModal(c);
     const sub = (c.Message || "").trim().slice(0, 50);
-    setReplySubject(sub ? `Re: ${sub}${(c.Message || "").length > 50 ? "…" : ""}` : "Re: Your enquiry – SCM Insights");
+    setReplySubject(
+      sub
+        ? `Re: ${sub}${(c.Message || "").length > 50 ? "…" : ""}`
+        : "Re: Your enquiry – SCM Insights",
+    );
     setReplyBody("");
   };
 
   const sendReply = async () => {
-    if (!replyModal || !sessionToken || !backendUrl || !replyBody.trim()) return;
+    if (!replyModal || !sessionToken || !backendUrl || !replyBody.trim())
+      return;
     setReplySending(true);
     try {
       await axios.post(
         `${backendUrl}/api/admin/contacts/${replyModal.ContactId}/reply`,
         { subject: replySubject.trim() || undefined, body: replyBody.trim() },
-        { headers: { "Session-Token": sessionToken, "X-Client": "scm-insights", "Content-Type": "application/json" }, withCredentials: true }
+        {
+          headers: {
+            "Session-Token": sessionToken,
+            "X-Client": "scm-insights",
+            "Content-Type": "application/json",
+          },
+          withCredentials: true,
+        },
       );
       setReplyModal(null);
       fetchContacts();
@@ -143,13 +173,19 @@ export default function AdminContactsPage() {
   }
 
   return (
-    <div>
-      <div className="flex items-center gap-3 mb-8">
-        <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
-          <HugeiconsIcon icon={Message01Icon} size={24} className="text-blue-600" />
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded-xl bg-linear-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg">
+          <HugeiconsIcon
+            icon={Message01Icon}
+            size={24}
+            className="text-white"
+          />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Contact submissions</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Contact submissions
+          </h1>
           <p className="text-sm text-gray-500">
             Messages submitted via the contact form
           </p>
@@ -165,8 +201,35 @@ export default function AdminContactsPage() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
+        className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden"
       >
+        <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3 bg-gray-50/50">
+          <span className="text-sm text-gray-600">
+            {pagination.total > 0
+              ? `Showing ${(pagination.page - 1) * pagination.page_size + 1}–${Math.min(pagination.page * pagination.page_size, pagination.total)} of ${pagination.total}`
+              : "No submissions"}
+          </span>
+          <label className="text-sm text-gray-600 flex items-center gap-2">
+            Rows per page
+            <select
+              value={pagination.page_size}
+              onChange={(e) =>
+                setPagination((p) => ({
+                  ...p,
+                  page_size: Number(e.target.value),
+                  page: 1,
+                }))
+              }
+              className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+            >
+              {ROWS_PER_PAGE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         {loading ? (
           <div className="flex justify-center py-12">
             <HugeiconsIcon
@@ -225,18 +288,24 @@ export default function AdminContactsPage() {
                       <td className="px-4 py-3 text-sm text-gray-600 hidden md:table-cell">
                         {c.PhoneNumber || "—"}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 max-w-[200px] truncate" title={c.Message}>
+                      <td
+                        className="px-4 py-3 text-sm text-gray-600 max-w-[200px] truncate"
+                        title={c.Message}
+                      >
                         {c.Message || "—"}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500 hidden sm:table-cell">
                         {c.CreatedTime
-                          ? new Date(c.CreatedTime).toLocaleDateString(undefined, {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
+                          ? new Date(c.CreatedTime).toLocaleDateString(
+                              undefined,
+                              {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              },
+                            )
                           : "—"}
                       </td>
                       <td className="px-4 py-3">
@@ -282,6 +351,35 @@ export default function AdminContactsPage() {
             </table>
           </div>
         )}
+        {pagination.total_pages > 1 && (
+          <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between text-sm text-gray-600 bg-gray-50/30">
+            <span>
+              Page {pagination.page} of {pagination.total_pages}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={pagination.page <= 1}
+                onClick={() =>
+                  setPagination((p) => ({ ...p, page: p.page - 1 }))
+                }
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 disabled:opacity-50 hover:bg-gray-50"
+              >
+                <HugeiconsIcon icon={ArrowLeft01Icon} size={16} /> Previous
+              </button>
+              <button
+                type="button"
+                disabled={pagination.page >= pagination.total_pages}
+                onClick={() =>
+                  setPagination((p) => ({ ...p, page: p.page + 1 }))
+                }
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 disabled:opacity-50 hover:bg-gray-50"
+              >
+                Next <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
+              </button>
+            </div>
+          </div>
+        )}
       </motion.div>
 
       {/* Reply modal */}
@@ -302,12 +400,18 @@ export default function AdminContactsPage() {
               className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
             >
               <div className="p-5 border-b border-gray-100">
-                <h2 className="text-lg font-semibold text-gray-900">Reply to {replyModal.Name || replyModal.Email}</h2>
-                <p className="text-sm text-gray-500 mt-0.5">Reply will be sent to {replyModal.Email}</p>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Reply to {replyModal.Name || replyModal.Email}
+                </h2>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Reply will be sent to {replyModal.Email}
+                </p>
               </div>
               <div className="p-5 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Subject
+                  </label>
                   <input
                     type="text"
                     value={replySubject}
@@ -317,7 +421,9 @@ export default function AdminContactsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Message <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Message <span className="text-red-500">*</span>
+                  </label>
                   <textarea
                     value={replyBody}
                     onChange={(e) => setReplyBody(e.target.value)}
@@ -343,7 +449,11 @@ export default function AdminContactsPage() {
                 >
                   {replySending ? (
                     <>
-                      <HugeiconsIcon icon={Loading03Icon} size={18} className="animate-spin" />
+                      <HugeiconsIcon
+                        icon={Loading03Icon}
+                        size={18}
+                        className="animate-spin"
+                      />
                       Sending...
                     </>
                   ) : (
@@ -376,7 +486,9 @@ export default function AdminContactsPage() {
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5"
             >
-              <p className="text-gray-700 font-medium">Delete this contact submission? This cannot be undone.</p>
+              <p className="text-gray-700 font-medium">
+                Delete this contact submission? This cannot be undone.
+              </p>
               <div className="mt-4 flex justify-end gap-2">
                 <button
                   type="button"
@@ -392,7 +504,11 @@ export default function AdminContactsPage() {
                   className="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
                 >
                   {actionLoading === deleteConfirm ? (
-                    <HugeiconsIcon icon={Loading03Icon} size={18} className="animate-spin" />
+                    <HugeiconsIcon
+                      icon={Loading03Icon}
+                      size={18}
+                      className="animate-spin"
+                    />
                   ) : (
                     <HugeiconsIcon icon={Delete02Icon} size={18} />
                   )}
@@ -403,37 +519,6 @@ export default function AdminContactsPage() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {pagination.total_pages > 1 && (
-        <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
-          <span>
-            Page {pagination.page} of {pagination.total_pages} ({pagination.total}{" "}
-            total)
-          </span>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={pagination.page <= 1}
-              onClick={() =>
-                setPagination((p) => ({ ...p, page: p.page - 1 }))
-              }
-              className="px-3 py-1 rounded-lg border border-gray-200 disabled:opacity-50 hover:bg-gray-50"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              disabled={pagination.page >= pagination.total_pages}
-              onClick={() =>
-                setPagination((p) => ({ ...p, page: p.page + 1 }))
-              }
-              className="px-3 py-1 rounded-lg border border-gray-200 disabled:opacity-50 hover:bg-gray-50"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

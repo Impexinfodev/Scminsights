@@ -48,6 +48,7 @@ def create_app(config_override=None):
     from controllers.auth_controller import auth_bp
     from controllers.admin_controller import admin_bp
     from controllers.user_controller import user_bp
+    from controllers.payment_controller import payment_bp
     from controllers.sims_data_controller import sims_data_bp
     from controllers.public_controller import public_bp
     from controllers.contact_controller import contact_bp
@@ -55,6 +56,7 @@ def create_app(config_override=None):
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(user_bp)
+    app.register_blueprint(payment_bp)
     app.register_blueprint(sims_data_bp)
     app.register_blueprint(public_bp)
     app.register_blueprint(contact_bp)
@@ -66,6 +68,9 @@ def create_app(config_override=None):
         if request.method not in ("POST", "PUT", "DELETE", "PATCH"):
             return None
         path = (request.path or "").rstrip("/")
+        # Razorpay webhook has no browser headers; allow without CSRF check
+        if path == "/api/payment/webhook":
+            return None
         state_changing = (
             path in ("/login", "/signup", "/logout", "/forgot-password")
             or path.startswith("/api/auth/")

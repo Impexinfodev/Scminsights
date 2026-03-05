@@ -24,6 +24,7 @@ import {
   CallIcon,
   DashboardSquare02Icon,
   Ticket01Icon,
+  Tag01Icon,
 } from "@hugeicons/core-free-icons";
 import {
   useAppDispatch,
@@ -69,6 +70,7 @@ const MenuItems = [
   { title: "Buyers", href: "/buyer", icon: UserAdd01Icon },
   { title: "Suppliers", href: "/supplier", icon: UserGroupIcon },
   { title: "Plans", href: "/plans", icon: Ticket01Icon },
+  { title: "HS Code", href: "/hsn", icon: Tag01Icon },
   { title: "Contact", href: "/contact", icon: CallIcon },
 ];
 

@@ -85,7 +85,6 @@ FLASK_CONFIG = {
 
 CORS_ORIGINS = get_env_list(
     "CORS_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000,http://192.168.1.21:3000,https://scminsights.ai,https://www.scminsights.ai",
 )
 
 
@@ -106,13 +105,32 @@ EMAIL_CONFIG = {
 # ===========================================
 # Application URLs
 # ===========================================
+# FRONTEND_URL: base URL for links in emails (activation, reset password).
+# Set in .env: dev -> http://localhost:3000 (or your local frontend), production -> https://your-live-domain.com
+# DOMAIN_URL: fallback if FRONTEND_URL not set (kept for compatibility).
 
-if os.environ.get("FLASK_ENV", "development") == "production":
-    DOMAIN_URL = get_env("DOMAIN_URL", "https://scminsights.ai")
-else:
-    DOMAIN_URL = get_env("DOMAIN_URL", "http://localhost:3001")
+_is_production = os.environ.get("FLASK_ENV", "development") == "production"
+_DEFAULT_FRONTEND_URL = "https://scminsights.ai" if _is_production else "http://localhost:3000"
+_DEFAULT_DOMAIN_URL = "https://scminsights.ai" if _is_production else "http://localhost:3001"
+
+FRONTEND_URL = (get_env("FRONTEND_URL", get_env("DOMAIN_URL", _DEFAULT_FRONTEND_URL)) or "").rstrip("/")
+DOMAIN_URL = get_env("DOMAIN_URL", _DEFAULT_DOMAIN_URL)
+# FRONTEND_URL is used for email links (activation, reset password).
 BACKEND_URL = get_env("BACKEND_URL", "http://localhost:5001")
 
+
+# ===========================================
+# Razorpay (payments in INR)
+# ===========================================
+# Strip whitespace so .env values don't cause 401 Authentication failed
+RAZORPAY_KEY_ID = (get_env("RAZORPAY_KEY_ID", "") or "").strip()
+RAZORPAY_KEY_SECRET = (get_env("RAZORPAY_KEY_SECRET", "") or "").strip()
+# Webhook secret: set the same value in Razorpay Dashboard → Webhooks → Secret
+RAZORPAY_WEBHOOK_SECRET = (get_env("RAZORPAY_WEBHOOK_SECRET", "") or "").strip()
+
+# Default website/platform identifier for this deployment (used in order notes and PaymentTransaction.SourceWebsite).
+# Other sites using the same Razorpay account should set their own value (e.g. "website-b", "website-c").
+PAYMENT_SOURCE_WEBSITE = (get_env("PAYMENT_SOURCE_WEBSITE", "scminsights") or "scminsights").strip() or "scminsights"
 
 # ===========================================
 # Admin

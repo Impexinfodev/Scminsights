@@ -15,7 +15,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import axios from "axios";
 import { useUser } from "@/hooks/useUser";
-import { getPlanPriceDisplay } from "@/lib/currency";
+import { getPlanPriceBoth } from "@/lib/currency";
 
 type AccessShape = {
   Access: string;
@@ -35,7 +35,26 @@ type Plan = {
   Buyers: AccessShape;
   Suppliers: AccessShape;
   Validity?: string;
+  IsTopPlan?: boolean;
 };
+
+// Plan hierarchy: lower index = lower tier. Top plan has full access; no plan above it.
+const PLAN_ORDER: string[] = ["TRIAL", "DIRECTORY", "TRADE", "BUNDLE"];
+
+function getPlanRank(licenseType: string): number {
+  const i = PLAN_ORDER.indexOf(licenseType);
+  return i === -1 ? 0 : i;
+}
+
+function isPlanHigherThan(myType: string | null, cardType: string): boolean {
+  if (!myType) return true;
+  return getPlanRank(cardType) > getPlanRank(myType);
+}
+
+function isPlanLowerThan(myType: string | null, cardType: string): boolean {
+  if (!myType) return false;
+  return getPlanRank(cardType) < getPlanRank(myType);
+}
 
 function getAccessDetail(a: AccessShape): { label: string; value: string } {
   if (a.Access === "full") return { label: "Access", value: "Full access" };
@@ -115,11 +134,26 @@ export default function PlansPageClient() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.1 }}
-            className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
+            className="grid gap-5 sm:grid-cols-2"
           >
             {plans.map((plan, i) => {
               const isCurrent =
                 isLoggedIn && myLicenseType === plan.LicenseType;
+              const isUserOnTopPlan =
+                isLoggedIn &&
+                (myLicenseType === "BUNDLE" ||
+                  plans.some(
+                    (p) => p.LicenseType === myLicenseType && p.IsTopPlan,
+                  ));
+              const canUpgrade =
+                isLoggedIn &&
+                !isCurrent &&
+                !isUserOnTopPlan &&
+                isPlanHigherThan(myLicenseType, plan.LicenseType);
+              const canDowngrade =
+                isLoggedIn &&
+                !isCurrent &&
+                isPlanLowerThan(myLicenseType, plan.LicenseType);
               const dirDetail = getAccessDetail(plan.Directory);
               const buyersDetail = getAccessDetail(plan.Buyers);
               const suppliersDetail = getAccessDetail(plan.Suppliers);
@@ -151,7 +185,18 @@ export default function PlansPageClient() {
                         </p>
                       </div>
                       <span className="text-lg font-bold text-blue-600 shrink-0 whitespace-nowrap">
-                        {getPlanPriceDisplay(plan).formatted}
+                        {(() => {
+                          const { inrFormatted, usdFormatted, inIndia } = getPlanPriceBoth(plan);
+                          if (inIndia) return inrFormatted;
+                          return (
+                            <>
+                              {usdFormatted}
+                              <span className="font-normal text-gray-500 ml-1">
+                                · {inrFormatted}
+                              </span>
+                            </>
+                          );
+                        })()}
                       </span>
                     </div>
                     {plan.ShortDescription && (
@@ -237,15 +282,23 @@ export default function PlansPageClient() {
                         View my plan
                         <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
                       </Link>
-                    ) : (
+                    ) : canUpgrade ? (
                       <Link
-                        href="/contact"
+                        href={`/checkout?plan=${encodeURIComponent(plan.LicenseType)}`}
                         className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
                       >
-                        Upgrade
+                        Upgrade (Pay in ₹)
                         <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
                       </Link>
-                    )}
+                    ) : canDowngrade ? (
+                      <Link
+                        href="/contact"
+                        className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-100 transition-colors"
+                      >
+                        Contact to switch
+                        <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
+                      </Link>
+                    ) : null}
                   </div>
                 </motion.div>
               );

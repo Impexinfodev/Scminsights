@@ -14,6 +14,7 @@ import {
   Database01Icon,
   UserAdd01Icon,
   UserGroupIcon,
+  Tag01Icon,
 } from "@hugeicons/core-free-icons";
 import { useUser } from "@/hooks/useUser";
 import axios from "axios";
@@ -35,6 +36,7 @@ type Plan = {
   Directory: AccessShape;
   Buyers: AccessShape;
   Suppliers: AccessShape;
+  HsCode: AccessShape;
   Validity?: string;
   ValidityDays?: number;
 };
@@ -54,6 +56,11 @@ const defaultSuppliers: AccessShape = {
   MaxSearchesPerPeriod: 0,
   MaxRowsPerSearch: 0,
 };
+const defaultHsCode: AccessShape = {
+  Access: "full",
+  MaxRows: 99999,
+  MaxRowsPerSearch: 100,
+};
 
 const emptyPlan: Plan = {
   LicenseType: "",
@@ -64,6 +71,7 @@ const emptyPlan: Plan = {
   Directory: { ...defaultDirectory },
   Buyers: { ...defaultBuyers },
   Suppliers: { ...defaultSuppliers },
+  HsCode: { ...defaultHsCode },
   Validity: "Year",
   ValidityDays: 365,
 };
@@ -128,6 +136,7 @@ export default function AdminPlansPage() {
       Directory: { ...defaultDirectory },
       Buyers: { ...defaultBuyers },
       Suppliers: { ...defaultSuppliers },
+      HsCode: { ...defaultHsCode },
     });
     setModal("create");
   };
@@ -143,6 +152,7 @@ export default function AdminPlansPage() {
       Directory: { ...defaultDirectory, ...p.Directory },
       Buyers: { ...defaultBuyers, ...p.Buyers },
       Suppliers: { ...defaultSuppliers, ...p.Suppliers },
+      HsCode: { ...defaultHsCode, ...p.HsCode },
       Validity: p.Validity ?? "Year",
       ValidityDays: p.ValidityDays ?? 365,
     });
@@ -167,6 +177,7 @@ export default function AdminPlansPage() {
       Directory: form.Directory,
       Buyers: form.Buyers,
       Suppliers: form.Suppliers,
+      HsCode: form.HsCode,
       Validity: form.Validity || "Year",
       ValidityDays: Number(form.ValidityDays) || 365,
     };
@@ -232,6 +243,8 @@ export default function AdminPlansPage() {
     setForm((f) => ({ ...f, Buyers: { ...f.Buyers, ...updates } }));
   const updateSuppliers = (updates: Partial<AccessShape>) =>
     setForm((f) => ({ ...f, Suppliers: { ...f.Suppliers, ...updates } }));
+  const updateHsCode = (updates: Partial<AccessShape>) =>
+    setForm((f) => ({ ...f, HsCode: { ...f.HsCode, ...updates } }));
 
   if (isLoading || !sessionChecked || (isLoggedIn && !isAdmin)) {
     return (
@@ -356,6 +369,15 @@ export default function AdminPlansPage() {
                           </span>
                         </td>
                         <td className="py-2.5 px-3 text-gray-700">{summarizeAccess("Suppliers", plan.Suppliers)}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2.5 px-3 text-gray-500 font-medium align-top">
+                          <span className="flex items-center gap-1.5">
+                            <HugeiconsIcon icon={Tag01Icon} size={14} className="text-blue-600 shrink-0" />
+                            HS Code
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-gray-700">{summarizeAccess("HsCode", plan.HsCode ?? { Access: "full" })}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -734,6 +756,89 @@ export default function AdminPlansPage() {
                           value={form.Suppliers.MaxRowsPerSearch ?? 0}
                           onChange={(e) =>
                             updateSuppliers({
+                              MaxRowsPerSearch: Number(e.target.value) || 0,
+                            })
+                          }
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* HS Code */}
+                <div className="rounded-xl border border-gray-200 p-4 space-y-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-800">
+                    <HugeiconsIcon
+                      icon={Tag01Icon}
+                      size={18}
+                      className="text-blue-600"
+                    />
+                    HS Code
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Control access to HS Code search and descriptions. Limited = cap rows returned per search and total.
+                  </p>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="hscodeAccess"
+                        checked={form.HsCode.Access === "full"}
+                        onChange={() => updateHsCode({ Access: "full" })}
+                        className="text-blue-600"
+                      />
+                      <span className="text-sm">Full access</span>
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="hscodeAccess"
+                        checked={form.HsCode.Access === "limited"}
+                        onChange={() => updateHsCode({ Access: "limited" })}
+                        className="text-blue-600"
+                      />
+                      <span className="text-sm">Limited (rows)</span>
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="hscodeAccess"
+                        checked={form.HsCode.Access === "custom"}
+                        onChange={() => updateHsCode({ Access: "custom", MaxRows: 0, MaxRowsPerSearch: 0 })}
+                        className="text-blue-600"
+                      />
+                      <span className="text-sm">No access</span>
+                    </label>
+                  </div>
+                  {form.HsCode.Access === "limited" && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                          Max rows total
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={form.HsCode.MaxRows ?? 100}
+                          onChange={(e) =>
+                            updateHsCode({
+                              MaxRows: Number(e.target.value) || 0,
+                            })
+                          }
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                          Max rows per search
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={form.HsCode.MaxRowsPerSearch ?? 20}
+                          onChange={(e) =>
+                            updateHsCode({
                               MaxRowsPerSearch: Number(e.target.value) || 0,
                             })
                           }

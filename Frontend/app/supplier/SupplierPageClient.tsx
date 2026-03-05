@@ -281,9 +281,16 @@ export default function SupplierPageClient() {
       const url = `${BACKEND_URL}/api/trade/years?${new URLSearchParams({ trade_type: "exporter", hs_code: code })}`;
       setIsYearsLoading(true);
       try {
-        const res = await fetch(url);
+        const res = await fetch(url, {
+          headers: sessionToken ? { "Session-Token": sessionToken } : {},
+        });
         const json = await res.json();
         if (cancelledRef.current) return;
+        if (res.status === 403 && (json?.code === "PLAN_NO_ACCESS" || json?.code === "NO_ACCESS")) {
+          setToast({ message: json?.error || "Your plan does not include Suppliers search. Upgrade to access.", type: "warning" });
+          setAvailableYears([]);
+          return;
+        }
         if (!res.ok) throw new Error(json?.error || "Failed to load years");
         setAvailableYears(Array.isArray(json?.data) ? json.data : []);
       } catch (e) {
@@ -294,7 +301,7 @@ export default function SupplierPageClient() {
         if (!cancelledRef.current) setIsYearsLoading(false);
       }
     },
-    [hsCode, BACKEND_URL]
+    [hsCode, BACKEND_URL, sessionToken]
   );
 
   useEffect(() => {
@@ -349,10 +356,23 @@ export default function SupplierPageClient() {
       if (country.trim()) params.set("country", sanitizeSearchInput(country.trim()));
       if (year !== "") params.set("year", String(year));
 
-      const res = await fetch(`${BACKEND_URL}/api/trade/top?${params}`, { signal });
+      const res = await fetch(`${BACKEND_URL}/api/trade/top?${params}`, {
+        signal,
+        headers: sessionToken ? { "Session-Token": sessionToken } : {},
+      });
       const json = await res.json();
 
       if (signal.aborted) return;
+      if (res.status === 403 && (json?.code === "PLAN_NO_ACCESS" || json?.code === "NO_ACCESS")) {
+        setToast({
+          message: json?.error || "Your plan does not include Suppliers search. Upgrade to access.",
+          type: "warning",
+        });
+        setSuppliers([]);
+        setTotalResults(0);
+        setTotalPages(0);
+        return;
+      }
       if (!res.ok) {
         throw new Error(json?.error || "Search failed");
       }

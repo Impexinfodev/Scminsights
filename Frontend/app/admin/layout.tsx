@@ -52,6 +52,12 @@ const navLinks = [
     path: "/admin/contacts",
     description: "Contact form submissions",
   },
+  {
+    label: "Transactions",
+    icon: Ticket01Icon,
+    path: "/admin/transactions",
+    description: "Payment records & export",
+  },
 ];
 
 export default function AdminLayout({

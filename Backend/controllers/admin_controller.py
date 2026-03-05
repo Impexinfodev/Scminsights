@@ -6,6 +6,23 @@ from utils.helpers import validate_pagination_params
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 
 
+def _users_query_params():
+    """Parse sort_by, sort_order, status filter for users list."""
+    sort_by = (request.args.get("sort_by") or "").strip().lower() or None
+    if sort_by and sort_by not in ("email", "name", "status"):
+        sort_by = None
+    sort_order = (request.args.get("sort_order") or "desc").strip().lower()
+    if sort_order not in ("asc", "desc"):
+        sort_order = "desc"
+    status_param = (request.args.get("status") or "").strip().lower()
+    activation_status = None
+    if status_param == "active":
+        activation_status = True
+    elif status_param == "inactive":
+        activation_status = False
+    return sort_by, sort_order, activation_status
+
+
 @admin_bp.route("/users", methods=["GET"])
 @require_auth
 @require_admin
@@ -19,9 +36,15 @@ def get_all_users():
     if not is_valid:
         return jsonify({"error": "Invalid pagination parameters"}), 400
     search_term = (request.args.get("search") or "").strip() or None
+    sort_by, sort_order, activation_status = _users_query_params()
     admin_repo = RepoProvider.get_admin_repo()
     users, total = admin_repo.get_all_users(
-        sort_order=sort_order, search_term=search_term, page=page, page_size=page_size
+        sort_order=sort_order,
+        search_term=search_term,
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        activation_status=activation_status,
     )
     return jsonify({
         "users": users,
@@ -32,6 +55,44 @@ def get_all_users():
             "total_pages": (total + page_size - 1) // page_size if total > 0 else 0,
         },
     }), 200
+
+
+@admin_bp.route("/users/export", methods=["GET"])
+@require_auth
+@require_admin
+def export_users():
+    from repositories.repo_provider import RepoProvider
+    from flask import Response
+    import csv
+    import io
+    search_term = (request.args.get("search") or "").strip() or None
+    sort_by, sort_order, activation_status = _users_query_params()
+    admin_repo = RepoProvider.get_admin_repo()
+    users, _ = admin_repo.get_all_users(
+        sort_order=sort_order,
+        search_term=search_term,
+        page=1,
+        page_size=10000,
+        sort_by=sort_by,
+        activation_status=activation_status,
+    )
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Email", "Name", "Company", "Status", "License", "User Id"])
+    for u in users:
+        writer.writerow([
+            u.get("EmailId") or u.get("UserId") or "",
+            u.get("Name") or "",
+            u.get("Company") or "",
+            "Active" if u.get("ActivationStatus") else "Inactive",
+            u.get("LicenseType") or "",
+            u.get("UserId") or "",
+        ])
+    return Response(
+        buf.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=users.csv"},
+    )
 
 
 @admin_bp.route("/user", methods=["GET"])
@@ -100,14 +161,37 @@ def delete_user():
 @require_auth
 @require_admin
 def overview():
-    """Overview tab: basic stats for admin dashboard."""
+    """Overview tab: stats for admin dashboard including revenue, today active, API health."""
     from repositories.repo_provider import RepoProvider
     admin_repo = RepoProvider.get_admin_repo()
     total_users, active_users = admin_repo.get_users_overview_counts()
+    today_active = 0
+    revenue_total_paise = 0
+    revenue_by_month = []
+    api_health = False
+    if hasattr(admin_repo, "get_today_active_count"):
+        try:
+            today_active = admin_repo.get_today_active_count()
+        except Exception:
+            pass
+    if hasattr(admin_repo, "get_revenue_stats"):
+        try:
+            revenue_total_paise, revenue_by_month = admin_repo.get_revenue_stats(months=6)
+        except Exception:
+            pass
+    if hasattr(admin_repo, "health_check"):
+        try:
+            api_health = admin_repo.health_check()
+        except Exception:
+            pass
     return jsonify({
         "total_users": total_users,
         "active_users": active_users,
         "inactive_users": total_users - active_users,
+        "today_active_users": today_active,
+        "revenue_total_paise": revenue_total_paise,
+        "revenue_by_month": revenue_by_month,
+        "api_health": bool(api_health),
     }), 200
 
 
@@ -129,6 +213,7 @@ def _license_to_plan_response(lic_type, info):
             "Directory": info.get("Directory") or {"Access": "limited", "MaxRows": 10, "MaxRowsPerSearch": 5},
             "Buyers": info.get("Buyers") or {"Access": "custom", "MaxSearchesPerPeriod": 0, "MaxRowsPerSearch": 0},
             "Suppliers": info.get("Suppliers") or {"Access": "custom", "MaxSearchesPerPeriod": 0, "MaxRowsPerSearch": 0},
+            "HsCode": info.get("HsCode") or {"Access": "full", "MaxRows": 99999, "MaxRowsPerSearch": 100},
             "Validity": info.get("Validity", "Year"),
             "ValidityDays": info.get("ValidityDays", 365),
         }
@@ -147,6 +232,7 @@ def _license_to_plan_response(lic_type, info):
         },
         "Buyers": {"Access": "custom", "MaxSearchesPerPeriod": 0, "MaxRowsPerSearch": 0},
         "Suppliers": {"Access": "custom", "MaxSearchesPerPeriod": 0, "MaxRowsPerSearch": 0},
+        "HsCode": info.get("HsCode") or {"Access": "full", "MaxRows": 99999, "MaxRowsPerSearch": 100},
         "Validity": info.get("Validity", info.get("Period", "Year")),
         "ValidityDays": info.get("ValidityDays", 365),
     }
@@ -163,8 +249,31 @@ def get_all_licenses():
     return jsonify(licenses), 200
 
 
+@admin_bp.route("/licenses/stats", methods=["GET"])
+@require_auth
+@require_admin
+def get_license_stats():
+    """Returns total users and user count per license type for admin stats cards."""
+    from repositories.repo_provider import RepoProvider
+    admin_repo = RepoProvider.get_admin_repo()
+    if not hasattr(admin_repo, "get_license_user_counts"):
+        return jsonify({"total_users": 0, "by_license": []}), 200
+    total, by_license = admin_repo.get_license_user_counts()
+    all_licenses = admin_repo.get_all_licenses()
+    name_map = {}
+    for lic in all_licenses:
+        lt = lic.get("LicenseType", "")
+        info = lic.get("LicenseInfo") or {}
+        name_map[lt] = info.get("LicenseName", lt)
+    result = [
+        {"license_type": b["license_type"], "license_name": name_map.get(b["license_type"], b["license_type"]), "count": b["count"]}
+        for b in by_license
+    ]
+    return jsonify({"total_users": total, "by_license": result}), 200
+
+
 def _normalize_license_payload(data):
-    """Ensure Directory, Buyers, Suppliers exist with Access and optional limits."""
+    """Ensure Directory, Buyers, Suppliers, HsCode exist with Access and optional limits."""
     out = dict(data)
     for key in ("Directory", "Buyers", "Suppliers"):
         val = out.get(key)
@@ -183,6 +292,15 @@ def _normalize_license_payload(data):
                 val.setdefault("MaxSearchesPerPeriod", 0)
                 val.setdefault("MaxRowsPerSearch", 0)
         out[key] = val
+    # HsCode: full | limited | custom (same shape as Directory for row caps)
+    hscode = out.get("HsCode")
+    if not isinstance(hscode, dict):
+        hscode = {"Access": "full", "MaxRows": 99999, "MaxRowsPerSearch": 100}
+    else:
+        hscode.setdefault("Access", "full")
+        hscode.setdefault("MaxRows", 99999)
+        hscode.setdefault("MaxRowsPerSearch", 100)
+    out["HsCode"] = hscode
     out.setdefault("Validity", "Year")
     out.setdefault("ValidityDays", 365)
     if "PriceINR" not in out:
@@ -339,3 +457,94 @@ def assign_license():
         return jsonify({"error": "License type not found"}), 404
     admin_repo.assign_license(user_id, license_type)
     return jsonify({"message": "License assigned"}), 200
+
+
+@admin_bp.route("/transactions", methods=["GET"])
+@require_auth
+@require_admin
+def get_transactions():
+    from repositories.repo_provider import RepoProvider
+    page = request.args.get("page", 1, type=int)
+    page_size = request.args.get("page_size", 50, type=int)
+    sort_order = (request.args.get("sort_order") or "desc").strip().lower()
+    status = request.args.get("status", "").strip() or None
+    user_id = request.args.get("user_id", "").strip() or None
+    from_date = request.args.get("from_date", "").strip() or None
+    to_date = request.args.get("to_date", "").strip() or None
+    website = request.args.get("website", "").strip() or None
+    page = max(1, page)
+    page_size = min(max(1, page_size), 100)
+    admin_repo = RepoProvider.get_admin_repo()
+    rows, total = admin_repo.get_transactions(
+        page=page,
+        page_size=page_size,
+        sort_order=sort_order,
+        status=status,
+        user_id=user_id,
+        from_date=from_date,
+        to_date=to_date,
+        website=website,
+    )
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+    return jsonify({
+        "transactions": rows,
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "total_pages": total_pages,
+        },
+    }), 200
+
+
+@admin_bp.route("/transactions/export", methods=["GET"])
+@require_auth
+@require_admin
+def export_transactions():
+    from repositories.repo_provider import RepoProvider
+    from flask import Response
+    import csv
+    import io
+    status = request.args.get("status", "").strip() or None
+    user_id = request.args.get("user_id", "").strip() or None
+    from_date = request.args.get("from_date", "").strip() or None
+    to_date = request.args.get("to_date", "").strip() or None
+    website = request.args.get("website", "").strip() or None
+    admin_repo = RepoProvider.get_admin_repo()
+    rows, _ = admin_repo.get_transactions(
+        page=1,
+        page_size=10000,
+        sort_order="desc",
+        status=status,
+        user_id=user_id,
+        from_date=from_date,
+        to_date=to_date,
+        website=website,
+    )
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "Id", "Date", "Order ID", "Payment ID", "User ID", "Email", "Plan", "Amount (₹)", "Currency", "Status", "Website", "Created At", "Updated At",
+    ])
+    for r in rows:
+        amount_rupees = (r.get("AmountPaise") or 0) / 100
+        writer.writerow([
+            r.get("Id"),
+            r.get("CreatedAt", "")[:10],
+            r.get("RazorpayOrderId"),
+            r.get("RazorpayPaymentId"),
+            r.get("UserId"),
+            r.get("EmailId"),
+            r.get("LicenseType"),
+            f"{amount_rupees:.2f}",
+            r.get("Currency"),
+            r.get("Status"),
+            r.get("SourceWebsite") or "",
+            r.get("CreatedAt"),
+            r.get("UpdatedAt"),
+        ])
+    return Response(
+        buf.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=transactions.csv"},
+    )
