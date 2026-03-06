@@ -24,6 +24,7 @@ import {
   formatNumber,
 } from "@/lib/api-security";
 import { useUser } from "@/hooks/useUser";
+import TrialBanner from "@/components/TrialBanner";
 
 interface Supplier {
   Name?: string;
@@ -155,6 +156,20 @@ export default function SupplierPageClient() {
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "info" | "warning" } | null>(null);
 
   const pageSizeOptions = [10, 20, 30, 50];
+
+  // License / trial info
+  const [licenseInfo, setLicenseInfo] = useState<Record<string, unknown> | null>(null);
+
+  useEffect(() => {
+    if (!sessionToken) return;
+    fetch(`${BACKEND_URL}/userLicenseInfo`, { headers: { "Session-Token": sessionToken } })
+      .then((r) => r.json())
+      .then((data) => setLicenseInfo(data))
+      .catch(() => setLicenseInfo(null));
+  }, [sessionToken, BACKEND_URL]);
+
+  const isTrial = licenseInfo?.LicenseType === "TRIAL" || licenseInfo?.SuppliersAccess === "limited";
+  const trialRowLimit = Number(licenseInfo?.SuppliersRowsPerSearch ?? 5);
 
   // Handle page navigation (totalPages from API meta)
   const handlePageChange = (newPage: number) => {
@@ -721,6 +736,11 @@ export default function SupplierPageClient() {
             </div>
           )}
         </motion.form>
+
+        {/* Trial banner – shown when results are present and user is on trial */}
+        {isTrial && suppliers.length > 0 && (
+          <TrialBanner context="suppliers" rowLimit={trialRowLimit} className="mb-4" />
+        )}
 
         {/* Results Table */}
         <motion.div

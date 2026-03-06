@@ -8,6 +8,7 @@ import React, {
   useMemo,
 } from "react";
 import { useRouter } from "next/navigation";
+import TrialBanner from "@/components/TrialBanner";
 import { motion, AnimatePresence } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -17,7 +18,6 @@ import {
   Building02Icon,
   Loading03Icon,
   Cancel01Icon,
-  AlertCircleIcon,
   ArrowDown01Icon,
 } from "@hugeicons/core-free-icons";
 import axios from "axios";
@@ -331,34 +331,9 @@ export default function BuyersDirectoryPageClient() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
-        {/* Limited Access (trial): show banner only when there is data */}
+        {/* Trial banner – contact details masked, row limit applies */}
         {!hasSimsAccess && !isCheckingLicense && data.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3"
-          >
-            <HugeiconsIcon
-              icon={AlertCircleIcon}
-              size={20}
-              className="text-amber-600 mt-0.5 shrink-0"
-            />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-gray-900 mb-1">
-                Limited Access
-              </p>
-              <p className="text-sm text-gray-600">
-                Company names are visible; email and phone are masked.{" "}
-                <button
-                  onClick={() => router.push("/contact")}
-                  className="text-blue-600 font-medium hover:text-blue-700 cursor-pointer"
-                >
-                  Contact us
-                </button>{" "}
-                for full access.
-              </p>
-            </div>
-          </motion.div>
+          <TrialBanner context="directory" rowLimit={trialDirLimit} className="mb-6" />
         )}
 
         {/* Search */}

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import { useUser } from "@/hooks/useUser";
+import TrialBanner from "@/components/TrialBanner";
 
 interface HsnItem {
   code: string;
@@ -50,8 +51,23 @@ export default function HsnPageClient() {
   const [fetchError, setFetchError] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // License / trial info
+  const [licenseInfo, setLicenseInfo] = useState<Record<string, unknown> | null>(null);
+
   const backendUrl =
     process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+
+  useEffect(() => {
+    if (!sessionToken) return;
+    fetch(`${backendUrl}/userLicenseInfo`, { headers: { "Session-Token": sessionToken } })
+      .then((r) => r.json())
+      .then((data) => setLicenseInfo(data))
+      .catch(() => setLicenseInfo(null));
+  }, [sessionToken, backendUrl]);
+
+  const isHsnTrial =
+    licenseInfo?.LicenseType === "TRIAL" || licenseInfo?.HsCodeAccess === "limited";
+  const hsnTrialRowLimit = Number(licenseInfo?.HsCodeMaxRowsPerSearch ?? 100);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -255,6 +271,11 @@ export default function HsnPageClient() {
       </div>
 
       <div className="flex-1 min-h-0 max-w-7xl w-full mx-auto px-4 py-4 flex flex-col">
+        {/* Trial banner */}
+        {isHsnTrial && !isLoading && pageData.length > 0 && (
+          <TrialBanner context="hsn" rowLimit={hsnTrialRowLimit} className="mb-3" />
+        )}
+
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
           <div className="flex-1 overflow-auto min-h-0 max-h-[63vh]">
             {isLoading ? (

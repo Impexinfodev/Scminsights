@@ -18,9 +18,14 @@ function getConnectSrcEntries(url: string): string {
 
 const backendConnectSrc = getConnectSrcEntries(backendUrl);
 
+// Turbopack dev server uses eval() for HMR; allow it only in development
+const scriptSrc = isDev
+  ? "'self' 'unsafe-inline' 'unsafe-eval'"
+  : "'self' 'unsafe-inline'";
+
 const ContentSecurityPolicy = `
   default-src 'self';
-  script-src 'self' 'unsafe-inline';
+  script-src ${scriptSrc};
   style-src 'self' 'unsafe-inline';
   img-src 'self' data: blob: https://images.unsplash.com https://flagcdn.com https://*.unsplash.com;
   font-src 'self' data:;

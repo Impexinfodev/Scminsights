@@ -13,6 +13,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     { url: "/buyer", priority: 0.9, changeFrequency: "daily" as const },
     { url: "/supplier", priority: 0.9, changeFrequency: "daily" as const },
+    { url: "/hsn", priority: 0.85, changeFrequency: "weekly" as const },
     { url: "/plans", priority: 0.8, changeFrequency: "weekly" as const },
     { url: "/about", priority: 0.7, changeFrequency: "monthly" as const },
     { url: "/contact", priority: 0.7, changeFrequency: "monthly" as const },
@@ -22,7 +23,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: "/policy", priority: 0.4, changeFrequency: "yearly" as const },
     { url: "/terms-of-use", priority: 0.4, changeFrequency: "yearly" as const },
     { url: "/refund-policy", priority: 0.4, changeFrequency: "yearly" as const },
-    { url: "/hsn", priority: 0.6, changeFrequency: "monthly" as const },
   ];
 
   const allPages = [...mainPages, ...legalPages];

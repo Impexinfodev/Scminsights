@@ -111,3 +111,5 @@ backend-scm/static/*.json
 # Misc
 # -------------------------------------------
 **/*.prof
+
+.claude
