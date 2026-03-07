@@ -193,80 +193,83 @@ export default function HsnPageClient() {
             HSN Code Details With Tax Rates (w.e.f. 22-09-2025)
           </h1>
 
-          {!isLoading && (
-            <div className="flex flex-wrap items-center gap-3 md:gap-4 py-3 px-4 bg-gray-50 rounded-xl border border-gray-100">
-              <div className="relative flex-1 min-w-[200px] max-w-md">
-                <Search
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-                  size={18}
-                />
-                <input
-                  type="text"
-                  placeholder="Search by code or description..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-10 pl-10 pr-9 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-colors"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 rounded"
-                    aria-label="Clear search"
-                  >
-                    <X size={16} />
-                  </button>
-                )}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-sm text-gray-500 whitespace-nowrap">
-                  Sort by
-                </span>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as SortByOption)}
-                  className="h-10 px-3 border border-gray-200 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+          <div className="flex flex-wrap items-center gap-3 md:gap-4 py-3 px-4 bg-gray-50 rounded-xl border border-gray-100">
+            <div className="relative flex-1 min-w-[200px] max-w-md">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                size={18}
+              />
+              <input
+                type="text"
+                placeholder="Search by code or description..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-10 pl-10 pr-9 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/20 transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 rounded"
+                  aria-label="Clear search"
                 >
-                  <option value="code">HSN Code</option>
-                  <option value="description">Name / Description</option>
-                  <option value="type">Type</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-sm text-gray-500 whitespace-nowrap">
-                  Rows
-                </span>
-                <select
-                  value={rowsPerPage}
-                  onChange={(e) => setRowsPerPage(Number(e.target.value))}
-                  className="h-10 px-3 border border-gray-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
-                >
-                  {[25, 50, 100, 200].map((size) => (
-                    <option key={size} value={size}>
-                      {size}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-3 shrink-0 text-sm">
-                {hasSearch ? (
-                  <span className="text-gray-600">
-                    <strong className="text-blue-600 font-semibold">
-                      {totalItems.toLocaleString()}
-                    </strong>{" "}
-                    results found
-                  </span>
-                ) : (
-                  <span className="text-gray-600">
-                    <strong className="text-gray-800">
-                      {totalItems > 0 ? totalItems.toLocaleString() : "0"}
-                    </strong>{" "}
-                    codes
-                  </span>
-                )}
-              </div>
+                  <X size={16} />
+                </button>
+              )}
             </div>
-          )}
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-sm text-gray-500 whitespace-nowrap">
+                Sort by
+              </span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortByOption)}
+                className="h-10 px-3 border border-gray-200 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+              >
+                <option value="code">HSN Code</option>
+                <option value="description">Name / Description</option>
+                <option value="type">Type</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-sm text-gray-500 whitespace-nowrap">
+                Rows
+              </span>
+              <select
+                value={rowsPerPage}
+                onChange={(e) => setRowsPerPage(Number(e.target.value))}
+                className="h-10 px-3 border border-gray-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+              >
+                {[25, 50, 100, 200].map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-3 shrink-0 text-sm">
+              {isLoading ? (
+                <span className="flex items-center gap-1.5 text-gray-500">
+                  <Loader2 className="animate-spin" size={14} />
+                  Loading…
+                </span>
+              ) : hasSearch ? (
+                <span className="text-gray-600">
+                  <strong className="text-blue-600 font-semibold">
+                    {totalItems.toLocaleString()}
+                  </strong>{" "}
+                  results found
+                </span>
+              ) : (
+                <span className="text-gray-600">
+                  <strong className="text-gray-800">
+                    {totalItems > 0 ? totalItems.toLocaleString() : "0"}
+                  </strong>{" "}
+                  codes
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -279,9 +282,9 @@ export default function HsnPageClient() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
           <div className="flex-1 overflow-auto min-h-0 max-h-[63vh]">
             {isLoading ? (
-              <div className="py-20 flex flex-col items-center justify-center gap-3">
-                <Loader2 className="animate-spin text-blue-500" size={36} />
-                <p className="text-gray-500 text-sm">Loading HSN codes...</p>
+              <div className="py-16 flex flex-col items-center justify-center gap-3">
+                <Loader2 className="animate-spin text-blue-400" size={28} />
+                <p className="text-gray-400 text-sm">Loading…</p>
               </div>
             ) : fetchError ? (
               <div className="py-20 flex flex-col items-center justify-center gap-3">

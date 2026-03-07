@@ -20,17 +20,18 @@ const backendConnectSrc = getConnectSrcEntries(backendUrl);
 
 // Turbopack dev server uses eval() for HMR; allow it only in development
 const scriptSrc = isDev
-  ? "'self' 'unsafe-inline' 'unsafe-eval'"
-  : "'self' 'unsafe-inline'";
+  ? "'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://api.razorpay.com"
+  : "'self' 'unsafe-inline' https://checkout.razorpay.com https://api.razorpay.com";
 
 const ContentSecurityPolicy = `
   default-src 'self';
   script-src ${scriptSrc};
-  style-src 'self' 'unsafe-inline';
-  img-src 'self' data: blob: https://images.unsplash.com https://flagcdn.com https://*.unsplash.com;
-  font-src 'self' data:;
-  connect-src 'self' ${backendConnectSrc} https://api.scminsights.ai https://checkout.razorpay.com wss://api.razorpay.com${isDev ? " ws://localhost:* wss://localhost:*" : ""};
-  frame-src https://checkout.razorpay.com;
+  style-src 'self' 'unsafe-inline' https://*.razorpay.com;
+  img-src 'self' data: blob: https://images.unsplash.com https://flagcdn.com https://*.unsplash.com https://*.razorpay.com https://*.razorpay.in https://cdn.razorpay.com;
+  font-src 'self' data: https://*.razorpay.com;
+  connect-src 'self' ${backendConnectSrc} https://api.scminsights.ai https://*.razorpay.com wss://*.razorpay.com https://api.sardine.ai${isDev ? " ws://localhost:* wss://localhost:*" : ""};
+  frame-src https://*.razorpay.com;
+  worker-src blob:;
   object-src 'none';
   base-uri 'self';
   form-action 'self';

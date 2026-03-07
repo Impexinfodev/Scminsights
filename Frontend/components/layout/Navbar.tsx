@@ -210,20 +210,20 @@ export default function Navbar() {
               </Link>
 
               {/* Desktop Navigation */}
-              <div className="hidden lg:flex items-center gap-1">
+              <div className="hidden lg:flex items-center gap-0.5 xl:gap-1">
                 {MenuItems.map((item) => {
                   const isActive = pathname === item.href;
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                      className={`flex items-center gap-0 xl:gap-2 px-2.5 xl:px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
                         isActive
                           ? "bg-blue-50 text-blue-600"
                           : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                       }`}
                     >
-                      <HugeiconsIcon icon={item.icon} size={16} />
+                      <HugeiconsIcon icon={item.icon} size={16} className="hidden xl:block" />
                       {item.title}
                     </Link>
                   );
@@ -525,6 +525,27 @@ export default function Navbar() {
                           <p className="font-medium">My Profile</p>
                           <p className="text-xs text-gray-500">
                             View and edit your profile
+                          </p>
+                        </div>
+                      </Link>
+
+                      {/* My Plan Link */}
+                      <Link
+                        href="/plan"
+                        onClick={() => setIsOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-all"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                          <HugeiconsIcon
+                            icon={Ticket01Icon}
+                            size={16}
+                            className="text-indigo-600"
+                          />
+                        </div>
+                        <div>
+                          <p className="font-medium">My Plan</p>
+                          <p className="text-xs text-gray-500">
+                            View your license and upgrade
                           </p>
                         </div>
                       </Link>

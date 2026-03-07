@@ -112,6 +112,7 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const [selectedCountryCode, setSelectedCountryCode] = useState("+91");
   const [toast, setToast] = useState<{
     title: string;
@@ -146,6 +147,14 @@ export default function SignupPage() {
     setToast({ title, description, status });
   };
 
+  const passwordRules = [
+    { id: "length", label: "At least 8 characters", test: (p: string) => p.length >= 8 },
+    { id: "upper", label: "One uppercase letter (A-Z)", test: (p: string) => /[A-Z]/.test(p) },
+    { id: "lower", label: "One lowercase letter (a-z)", test: (p: string) => /[a-z]/.test(p) },
+    { id: "digit", label: "One number (0-9)", test: (p: string) => /\d/.test(p) },
+    { id: "special", label: "One special character (!@#$…)", test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+  ];
+
   const validateForm = () => {
     let newErrors: Record<string, string> = {};
 
@@ -161,9 +170,13 @@ export default function SignupPage() {
     else if (!/^\d{6,15}$/.test(formValues.mobileNumber.replace(/\D/g, "")))
       newErrors.mobileNumber = "Invalid phone number";
 
-    if (!formValues.password) newErrors.password = "Password is required";
-    else if (formValues.password.length < 4)
-      newErrors.password = "Min 4 characters required";
+    if (!formValues.password) {
+      newErrors.password = "Password is required";
+    } else {
+      const failed = passwordRules.filter((r) => !r.test(formValues.password));
+      if (failed.length > 0)
+        newErrors.password = `Password needs: ${failed.map((r) => r.label).join(", ")}`;
+    }
 
     if (formValues.password !== formValues.confirmPassword)
       newErrors.confirmPassword = "Passwords do not match";
@@ -457,6 +470,8 @@ export default function SignupPage() {
                     placeholder="••••••••"
                     value={formValues.password}
                     onChange={handleInputChange}
+                    onFocus={() => setPasswordFocused(true)}
+                    onBlur={() => setPasswordFocused(false)}
                     className={`block w-full h-11 pl-11 pr-11 border ${errors.password ? "border-red-300" : "border-gray-200"} rounded-xl text-sm placeholder-gray-400 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all`}
                   />
                   <button
@@ -470,7 +485,22 @@ export default function SignupPage() {
                     />
                   </button>
                 </div>
-                {errors.password && (
+                {(passwordFocused || formValues.password) && (
+                  <div className="mt-2 p-2 bg-gray-50 rounded-lg border border-gray-100 space-y-1">
+                    {passwordRules.map((rule) => {
+                      const met = rule.test(formValues.password);
+                      return (
+                        <div key={rule.id} className={`flex items-center gap-1.5 text-xs ${met ? "text-emerald-600" : "text-gray-400"}`}>
+                          <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0 ${met ? "bg-emerald-500" : "bg-gray-300"}`}>
+                            {met ? "✓" : "·"}
+                          </span>
+                          {rule.label}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {errors.password && !passwordFocused && (
                   <p className="mt-1 text-xs text-red-600">{errors.password}</p>
                 )}
               </div>

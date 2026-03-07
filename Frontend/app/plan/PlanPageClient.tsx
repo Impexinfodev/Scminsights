@@ -41,6 +41,7 @@ export default function PlanPageClient() {
   const isTrial =
     !licenseInfo?.IsSimsAccess &&
     (licenseInfo?.LicenseType === "TRIAL" || !licenseInfo?.LicenseType);
+  const planDisplayName = licenseInfo?.LicenseName || licenseInfo?.LicenseType || "TRIAL";
   const dirRows = licenseInfo?.NumberOfRowsPerPeriod ?? 10;
   const searchRows = licenseInfo?.DirectoryRowsPerSearch ?? 5;
 
@@ -80,7 +81,7 @@ export default function PlanPageClient() {
           >
             <div className="flex flex-wrap items-center gap-3">
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                {licenseInfo?.LicenseType || "TRIAL"}
+                {planDisplayName}
               </span>
               {isTrial && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800">
@@ -90,7 +91,7 @@ export default function PlanPageClient() {
               )}
             </div>
             <h2 className="text-xl font-semibold text-gray-900 mt-4">
-              {isTrial ? "Trial plan" : "Paid plan"}
+              {planDisplayName}
             </h2>
             <p className="text-gray-600 mt-1">
               {isTrial

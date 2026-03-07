@@ -112,7 +112,9 @@ export default function ContactPageClient() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    // Phone: only allow digits, +, spaces, and dashes
+    const sanitized = name === "phone" ? value.replace(/[^\d+\s-]/g, "") : value;
+    setFormData((prev) => ({ ...prev, [name]: sanitized }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
@@ -351,6 +353,7 @@ export default function ContactPageClient() {
                       value={formData.name}
                       onChange={handleChange}
                       placeholder="John Doe"
+                      maxLength={100}
                       className={`w-full h-12 pl-12 pr-4 bg-gray-50 border ${
                         errors.name ? "border-red-300" : "border-gray-200"
                       } rounded-xl text-sm placeholder-gray-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 hover:border-blue-300 transition-all`}

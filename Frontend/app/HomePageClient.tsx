@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { motion, useScroll, useTransform, useSpring, useInView, Variants } from "framer-motion";
+import { motion, useScroll, useTransform, useInView, Variants } from "framer-motion";
 import { useRef } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -77,16 +77,15 @@ export default function HomePageClient() {
     offset: ["start start", "end start"]
   });
 
-  const smoothProgress = useSpring(scrollYProgress, { stiffness: 100, damping: 30 });
-  const heroY = useTransform(smoothProgress, [0, 1], [0, 150]);
-  const heroScale = useTransform(smoothProgress, [0, 1], [1, 1.1]);
-  const heroOpacity = useTransform(smoothProgress, [0, 0.8], [1, 0]);
-  const contentY = useTransform(smoothProgress, [0, 1], [0, -50]);
+  const heroY = useTransform(scrollYProgress, [0, 1], [0, 150]);
+  const heroScale = useTransform(scrollYProgress, [0, 1], [1, 1.1]);
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
+  const contentY = useTransform(scrollYProgress, [0, 1], [0, -50]);
 
   return (
     <div className="min-h-screen overflow-hidden bg-white relative">
       {/* Hero Section - 100vh */}
-      <section ref={heroRef} className="relative h-screen flex items-center overflow-hidden">
+      <section ref={heroRef} className="relative h-screen flex items-center pt-24 overflow-hidden">
         {/* Background Image with Parallax */}
         <motion.div
           style={{ y: heroY, scale: heroScale }}
@@ -111,8 +110,8 @@ export default function HomePageClient() {
           style={{ y: contentY, opacity: heroOpacity }}
           className="relative z-10 w-full"
         >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20">
-            <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid xl:grid-cols-2 gap-12 items-center">
               <motion.div
                 initial="hidden"
                 animate="visible"
@@ -190,7 +189,7 @@ export default function HomePageClient() {
                 initial={{ opacity: 0, x: 60 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.8, delay: 0.4 }}
-                className="hidden lg:block relative h-[500px]"
+                className="hidden xl:block relative h-[500px]"
               >
                 <motion.div
                   animate={{ y: [0, -12, 0] }}

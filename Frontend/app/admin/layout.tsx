@@ -19,7 +19,8 @@ import { logout } from "@/lib/store";
 import { selectUser } from "@/lib/store";
 
 const SIDEBAR_WIDTH = 280;
-const NAVBAR_OFFSET = 72;
+// Navbar outer py-4 (16+16) + inner py-3 (12+12) + logo h-10 (40) = 96px
+const NAVBAR_OFFSET = 96;
 
 const navLinks = [
   {
@@ -227,7 +228,7 @@ export default function AdminLayout({
         </button>
       </div>
 
-      <div className="flex min-h-[calc(100vh-72px)]">
+      <div className="flex min-h-[calc(100vh-96px)]">
         {/* Desktop Sidebar */}
         <aside
           className="hidden lg:block shrink-0 fixed left-0 bottom-0 z-20"
@@ -266,7 +267,7 @@ export default function AdminLayout({
 
         {/* Main content - spacing below navbar/admin bar (mobile) and from sidebar */}
         <main
-          className="flex-1 w-full min-w-0 overflow-y-auto overflow-x-hidden px-4 pt-30 pb-8 md:px-6 md:pt-8 lg:ml-[280px] lg:pt-8 lg:pl-8 lg:pr-8"
+          className="flex-1 w-full min-w-0 overflow-y-auto overflow-x-hidden px-4 pt-[152px] pb-8 md:px-6 lg:ml-[280px] lg:pt-8 lg:pl-8 lg:pr-8"
           style={{ minHeight: `calc(100vh - ${NAVBAR_OFFSET}px)` }}
         >
           <div className="max-w-6xl mx-auto space-y-6">{children}</div>

@@ -177,6 +177,7 @@ export default function BuyerPageClient() {
   }, [sessionToken, BACKEND_URL]);
 
   const isTrial = licenseInfo?.LicenseType === "TRIAL" || licenseInfo?.BuyersAccess === "limited";
+  const hasNoAccess = licenseInfo !== null && (licenseInfo?.BuyersAccess === "none" || (!licenseInfo?.BuyersAccess && licenseInfo?.LicenseType === "TRIAL"));
   const trialRowLimit = Number(licenseInfo?.BuyersRowsPerSearch ?? 5);
 
   // Handle page navigation (totalPages from API meta)
@@ -579,6 +580,35 @@ export default function BuyerPageClient() {
     setPageIndex(1);
     fetchSuppliers(1, validated);
   };
+
+  if (hasNoAccess) {
+    return (
+      <div className="min-h-screen bg-gray-50 pt-24 flex items-center justify-center px-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-lg w-full bg-white rounded-2xl border border-gray-200 shadow-sm p-10 text-center"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-blue-100 flex items-center justify-center mx-auto mb-5">
+            <HugeiconsIcon icon={Building02Icon} size={32} className="text-blue-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">Unlock Buyers Search</h2>
+          <p className="text-gray-600 mb-6">
+            Access to verified global importers and buyers is available on the <strong>Trade</strong> and <strong>Bundle</strong> plans. Upgrade to search by country, HS code, and more.
+          </p>
+          <a
+            href="/plans"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
+          >
+            View Plans & Upgrade
+          </a>
+          <p className="text-xs text-gray-400 mt-4">
+            Your current plan does not include Buyers/Suppliers access.
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">

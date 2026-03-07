@@ -231,13 +231,12 @@ export default function PlansPageClient() {
         } else {
           throw new Error("Invalid format");
         }
+        setLoading(false);
       } catch (err: any) {
-        if (err.name !== "AbortError") {
-          console.error("Failed to fetch plans:", err);
-          setError("Unable to load securely. Please refresh or try again later.");
-        }
+        if (axios.isCancel(err) || err.name === "AbortError" || err.name === "CanceledError") return;
+        console.error("Failed to fetch plans:", err);
+        setError("Unable to load securely. Please refresh or try again later.");
         setPlans([]);
-      } finally {
         setLoading(false);
       }
     };
@@ -260,7 +259,8 @@ export default function PlansPageClient() {
         });
         setMyLicenseType(res.data?.LicenseType ?? null);
       } catch (err: any) {
-        if (err.name !== "AbortError") console.error("Failed to sync license");
+        if (axios.isCancel(err) || err.name === "AbortError" || err.name === "CanceledError") return;
+        console.error("Failed to sync license");
       }
     };
 
@@ -272,7 +272,7 @@ export default function PlansPageClient() {
     <div className="min-h-screen bg-white pb-12 selection:bg-blue-100 text-gray-900" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif" }}>
 
       {/* Hero Section */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-white pt-14 pb-10 lg:pt-18 lg:pb-14 text-center rounded-b-2xl shadow-sm mb-8 border-b border-blue-100">
+      <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-white pt-24 pb-10 lg:pt-28 lg:pb-14 text-center rounded-b-2xl shadow-sm mb-8 border-b border-blue-100">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-blue-200/20 via-indigo-100/10 to-transparent" />
         <div className="absolute inset-0 bg-grid-pattern opacity-[0.02]" />
 

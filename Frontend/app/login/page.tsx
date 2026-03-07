@@ -109,10 +109,20 @@ export default function LoginPage() {
       router.replace("/");
     }
 
-    // Load remembered email
+    // Load remembered email (safely handle legacy JSON-encoded values)
     const savedEmail = localStorage.getItem("rememberedEmail");
     if (savedEmail) {
-      setFormData((prev) => ({ ...prev, email: savedEmail }));
+      let emailValue = savedEmail;
+      try {
+        const parsed = JSON.parse(savedEmail);
+        if (parsed && typeof parsed.email === "string") {
+          emailValue = parsed.email;
+          localStorage.setItem("rememberedEmail", emailValue);
+        }
+      } catch {
+        // already a plain string, use as-is
+      }
+      setFormData((prev) => ({ ...prev, email: emailValue }));
       setRememberMe(true);
     }
   }, [router, isLoggedIn, sessionChecked]);
@@ -305,7 +315,10 @@ export default function LoginPage() {
                 <label htmlFor="login-password" className="block text-sm font-medium text-gray-700">
                   Password
                 </label>
-                <Link href="/forgot-password" className="text-sm font-semibold text-blue-600 hover:text-blue-700">
+                <Link
+                  href={`/forgot-password${formData.email ? `?email=${encodeURIComponent(formData.email)}` : ""}`}
+                  className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                >
                   Forgot Password?
                 </Link>
               </div>

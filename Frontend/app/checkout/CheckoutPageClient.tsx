@@ -31,6 +31,8 @@ export default function CheckoutPageClient() {
     redirectTo: "/login",
   });
 
+  const [razorpayReady, setRazorpayReady] = useState(false);
+  const [razorpayError, setRazorpayError] = useState(false);
   const [step, setStep] = useState<"idle" | "creating" | "ready" | "processing" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [orderPayload, setOrderPayload] = useState<{
@@ -135,7 +137,8 @@ export default function CheckoutPageClient() {
       <Script
         src="https://checkout.razorpay.com/v1/checkout.js"
         strategy="afterInteractive"
-        onLoad={() => {}}
+        onLoad={() => { setRazorpayReady(true); setRazorpayError(false); }}
+        onError={() => { setRazorpayReady(false); setRazorpayError(true); }}
       />
       <div className="min-h-screen bg-gray-50 pt-24 pb-12">
         <div className="max-w-lg mx-auto px-4">
@@ -178,13 +181,22 @@ export default function CheckoutPageClient() {
               )}
               {step === "ready" && orderPayload && (
                 <div className="space-y-4">
-                  <button
-                    type="button"
-                    onClick={openRazorpay}
-                    className="w-full py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors"
-                  >
-                    Pay ₹{orderPayload.amount_rupees.toLocaleString("en-IN")} – Continue to Razorpay
-                  </button>
+                  {razorpayError ? (
+                    <p className="text-sm text-red-600 text-center py-2">
+                      Failed to load Razorpay. Please disable any ad-blockers and reload the page.
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={openRazorpay}
+                      disabled={!razorpayReady}
+                      className="w-full py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {razorpayReady
+                        ? `Pay ₹${orderPayload.amount_rupees.toLocaleString("en-IN")} – Continue to Razorpay`
+                        : "Loading payment gateway…"}
+                    </button>
+                  )}
                   <p className="text-center text-xs text-gray-500">
                     Pay via UPI · Net Banking · Cards · Wallets · EMI
                   </p>
