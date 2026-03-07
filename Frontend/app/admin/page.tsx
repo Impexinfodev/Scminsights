@@ -281,7 +281,7 @@ export default function AdminDashboardPage() {
                         ))}
                       </Pie>
                       <Tooltip
-                        formatter={(value: number) => [value, "Users"]}
+                        formatter={(value: number | undefined) => [value ?? 0, "Users"]}
                         contentStyle={{ borderRadius: "10px", border: "1px solid #e5e7eb" }}
                       />
                       <Legend formatter={(value) => <span className="text-xs text-gray-600">{value}</span>} iconSize={10} />
