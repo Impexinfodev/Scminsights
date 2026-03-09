@@ -151,3 +151,48 @@ SIMS_DIRECTORY_INDEX_STATEMENTS = [
     "CREATE INDEX IF NOT EXISTS idx_sims_ieccode ON SimsDirectory (IecCode);",
 ]
 DROP_SIMS_DIRECTORY_TABLE = "DROP TABLE IF EXISTS SimsDirectory CASCADE;"
+
+# ===========================================
+# Payment Gateway Config — keys stored in DB
+# Managed via Admin → Payment Settings UI
+# ===========================================
+CREATE_PAYMENT_GATEWAY_CONFIG_TABLE = """
+CREATE TABLE IF NOT EXISTS PaymentGatewayConfig (
+    GatewayId       VARCHAR(50)  PRIMARY KEY,
+    IsActive        BOOLEAN      NOT NULL DEFAULT FALSE,
+    KeyId           VARCHAR(500),
+    KeySecret       TEXT,
+    WebhookSecret   TEXT,
+    ExtraConfigJson TEXT         NOT NULL DEFAULT '{}',
+    UpdatedAt       TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UpdatedBy       VARCHAR(255)
+);
+"""
+
+# ALTER statements — add Checkout.com columns to existing PaymentTransaction
+# Safe to run on live: ADD COLUMN IF NOT EXISTS
+PAYMENT_TRANSACTION_ALTER_STATEMENTS = [
+    "ALTER TABLE PaymentTransaction ADD COLUMN IF NOT EXISTS Gateway VARCHAR(50) DEFAULT 'razorpay';",
+    "ALTER TABLE PaymentTransaction ADD COLUMN IF NOT EXISTS GatewayReference VARCHAR(255);",
+    "ALTER TABLE PaymentTransaction ADD COLUMN IF NOT EXISTS CurrencyCode VARCHAR(10) DEFAULT 'INR';",
+    "ALTER TABLE PaymentTransaction ADD COLUMN IF NOT EXISTS AmountMinorUnits BIGINT;",
+    "ALTER TABLE PaymentTransaction ADD COLUMN IF NOT EXISTS TxnId VARCHAR(255);",
+    "CREATE INDEX IF NOT EXISTS idx_payment_gateway_ref ON PaymentTransaction (GatewayReference);",
+    "CREATE INDEX IF NOT EXISTS idx_payment_txn_id ON PaymentTransaction (TxnId);",
+    # GST compliance (DPDP / GST Act)
+    "ALTER TABLE PaymentTransaction ADD COLUMN IF NOT EXISTS InvoiceNumber VARCHAR(50);",
+    "ALTER TABLE PaymentTransaction ADD COLUMN IF NOT EXISTS GstAmountPaise INT DEFAULT 0;",
+    "ALTER TABLE PaymentTransaction ADD COLUMN IF NOT EXISTS CustomerGst VARCHAR(20);",
+    "CREATE INDEX IF NOT EXISTS idx_payment_invoice ON PaymentTransaction (InvoiceNumber);",
+    # Test mode flag — set TRUE when order created with a test/sandbox key
+    "ALTER TABLE PaymentTransaction ADD COLUMN IF NOT EXISTS IsTestMode BOOLEAN NOT NULL DEFAULT FALSE;",
+    "CREATE INDEX IF NOT EXISTS idx_payment_test_mode ON PaymentTransaction (IsTestMode);",
+]
+
+# ALTER statements — DPDP Act 2023 consent tracking on UserProfile
+USER_PROFILE_DPDP_ALTER_STATEMENTS = [
+    "ALTER TABLE UserProfile ADD COLUMN IF NOT EXISTS ConsentGivenAt TIMESTAMPTZ;",
+    "ALTER TABLE UserProfile ADD COLUMN IF NOT EXISTS ConsentVersion VARCHAR(20) DEFAULT 'v1.0';",
+    # 30-day cooling-off period for account deletion (DPDP §12)
+    "ALTER TABLE UserProfile ADD COLUMN IF NOT EXISTS DeletionScheduledAt TIMESTAMPTZ;",
+]

@@ -106,6 +106,8 @@ export default function SignupPage() {
     confirmPassword: "",
     companyName: "",
     agreeTerms: false,
+    dpdpConsent: false,
+    ageDeclaration: false,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -184,6 +186,12 @@ export default function SignupPage() {
     if (!formValues.agreeTerms)
       newErrors.agreeTerms = "You must agree to the terms";
 
+    if (!formValues.ageDeclaration)
+      newErrors.ageDeclaration = "You must confirm you are 18 years or older (DPDP Act §9)";
+
+    if (!formValues.dpdpConsent)
+      newErrors.dpdpConsent = "You must consent to data processing under DPDP Act 2023";
+
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length > 0) {
@@ -229,6 +237,8 @@ export default function SignupPage() {
         phoneNumber: cleanPhoneNumber,
         phoneNumberCountryCode: selectedCountryCode.replace("+", ""),
         licenseType: "trial",
+        consent_given: true,
+        consent_version: "v1.0",
       };
 
       await axios.post(`${backendUrl}/signup`, signupData, {
@@ -544,34 +554,77 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* Terms */}
-            <div className="flex items-start mt-4">
-              <input
-                id="agreeTerms"
-                name="agreeTerms"
-                type="checkbox"
-                checked={formValues.agreeTerms}
-                onChange={handleInputChange}
-                className="h-4 w-4 mt-0.5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
-              />
-              <div className="ml-3 text-sm">
-                <label
-                  htmlFor="agreeTerms"
-                  className="text-gray-700 cursor-pointer"
-                >
-                  I agree to the{" "}
-                  <Link
-                    href="/terms-of-use"
-                    className="text-blue-600 hover:text-blue-700 hover:underline"
-                  >
-                    terms and conditions
-                  </Link>
-                </label>
-                {errors.agreeTerms && (
-                  <p className="text-xs text-red-600 mt-1">
-                    {errors.agreeTerms}
-                  </p>
-                )}
+            {/* Terms & Compliance Checkboxes */}
+            <div className="space-y-3 mt-4">
+              {/* Terms of Use */}
+              <div className="flex items-start gap-3">
+                <input
+                  id="agreeTerms"
+                  name="agreeTerms"
+                  type="checkbox"
+                  checked={formValues.agreeTerms}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 mt-0.5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer shrink-0"
+                />
+                <div className="text-sm">
+                  <label htmlFor="agreeTerms" className="text-gray-700 cursor-pointer">
+                    I agree to the{" "}
+                    <Link href="/terms-of-use" className="text-blue-600 hover:underline">
+                      Terms and Conditions
+                    </Link>
+                  </label>
+                  {errors.agreeTerms && (
+                    <p className="text-xs text-red-600 mt-0.5">{errors.agreeTerms}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Age Declaration — DPDP §9 */}
+              <div className="flex items-start gap-3">
+                <input
+                  id="ageDeclaration"
+                  name="ageDeclaration"
+                  type="checkbox"
+                  checked={formValues.ageDeclaration}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 mt-0.5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer shrink-0"
+                />
+                <div className="text-sm">
+                  <label htmlFor="ageDeclaration" className="text-gray-700 cursor-pointer">
+                    I confirm that I am <strong>18 years of age or older</strong>.
+                    <span className="text-gray-400 text-xs ml-1">(Required under DPDP Act §9)</span>
+                  </label>
+                  {errors.ageDeclaration && (
+                    <p className="text-xs text-red-600 mt-0.5">{errors.ageDeclaration}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* DPDP Consent — §5/§6 */}
+              <div className="flex items-start gap-3">
+                <input
+                  id="dpdpConsent"
+                  name="dpdpConsent"
+                  type="checkbox"
+                  checked={formValues.dpdpConsent}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 mt-0.5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer shrink-0"
+                />
+                <div className="text-sm">
+                  <label htmlFor="dpdpConsent" className="text-gray-700 cursor-pointer">
+                    I have read the{" "}
+                    <Link href="/policy" className="text-blue-600 hover:underline">
+                      Privacy Policy
+                    </Link>{" "}
+                    and consent to Aashita Technosoft Pvt. Ltd. processing my personal data
+                    (name, email, phone, company) as described therein for account management and
+                    service delivery, as required under the{" "}
+                    <span className="font-medium">Digital Personal Data Protection Act, 2023</span>.
+                  </label>
+                  {errors.dpdpConsent && (
+                    <p className="text-xs text-red-600 mt-0.5">{errors.dpdpConsent}</p>
+                  )}
+                </div>
               </div>
             </div>
 

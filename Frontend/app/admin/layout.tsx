@@ -59,6 +59,12 @@ const navLinks = [
     path: "/admin/transactions",
     description: "Payment records & export",
   },
+  {
+    label: "Payment Settings",
+    icon: Ticket01Icon,
+    path: "/admin/payment-settings",
+    description: "Razorpay & Checkout.com keys",
+  },
 ];
 
 export default function AdminLayout({

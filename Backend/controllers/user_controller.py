@@ -1,7 +1,11 @@
 # SCM-INSIGHTS User controller: license, supplier-countries, hscodes (DB or CSV)
 import re
+import io
+import csv
+import json
 import logging
-from flask import Blueprint, request, jsonify
+from datetime import datetime, timezone
+from flask import Blueprint, request, jsonify, Response
 
 from middlewares.auth_middleware import require_auth
 
@@ -199,3 +203,153 @@ def get_hscodes_descriptions():
     except Exception as e:
         logger.error("get_hscodes_descriptions failed: %s", type(e).__name__, exc_info=False)
         return jsonify({}), 200
+
+
+# ── DPDP Act 2023 — User Rights Endpoints ────────────────────────────────────
+
+@user_bp.route("/api/user/payment-history", methods=["GET"])
+@require_auth
+def payment_history():
+    """Return the authenticated user's payment history."""
+    user_repo = RepoProvider.get_user_repo()
+    try:
+        if not hasattr(user_repo, "get_user_payment_history"):
+            return jsonify({"payments": []}), 200
+        payments = user_repo.get_user_payment_history(request.user_id)
+        return jsonify({"payments": payments}), 200
+    except Exception as e:
+        logger.error("payment_history failed: %s", type(e).__name__, exc_info=False)
+        return jsonify({"error": "Failed to load payment history"}), 500
+
+
+@user_bp.route("/api/user/data-export", methods=["GET"])
+@require_auth
+def data_export():
+    """
+    DPDP §11 — Right to Access / Data Portability.
+    Returns all personal data held for the requesting user.
+    ?format=json (default) or ?format=csv
+    """
+    fmt = (request.args.get("format") or "json").strip().lower()
+    user_repo = RepoProvider.get_user_repo()
+    try:
+        user = user_repo.get_user_by_id(request.user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        payments = []
+        if hasattr(user_repo, "get_user_payment_history"):
+            try:
+                payments = user_repo.get_user_payment_history(request.user_id)
+            except Exception:
+                pass
+        valid_till = user.get("LicenseValidTill")
+        if valid_till and hasattr(valid_till, "isoformat"):
+            valid_till = valid_till.isoformat()
+        export = {
+            "export_generated_at": datetime.now(timezone.utc).isoformat(),
+            "notice": "This export contains all personal data held by SCM Insights (Aashita Technosoft Pvt. Ltd.) as required under DPDP Act 2023.",
+            "personal_data": {
+                "name": user.get("Name") or "",
+                "email": user.get("EmailId") or "",
+                "phone": user.get("PhoneNumber") or "",
+                "company": user.get("CompanyName") or "",
+                "gst": user.get("Gst") or "",
+                "license_type": user.get("LicenseType") or "",
+                "license_valid_till": valid_till,
+                "account_active": user.get("ActivationStatus"),
+                "role": user.get("Role") or "USER",
+            },
+            "payment_history": payments,
+        }
+        if fmt == "csv":
+            buf = io.StringIO()
+            writer = csv.writer(buf)
+            writer.writerow(["Section", "Field", "Value"])
+            for k, v in export["personal_data"].items():
+                writer.writerow(["personal_data", k, v if v is not None else ""])
+            writer.writerow([])
+            writer.writerow(["payment_history", "order_id", "plan", "amount_inr", "currency", "status", "date", "invoice_number"])
+            for p in export["payment_history"]:
+                writer.writerow([
+                    "payment_history",
+                    p.get("order_id", ""),
+                    p.get("plan", ""),
+                    p.get("amount_inr", ""),
+                    p.get("currency", ""),
+                    p.get("status", ""),
+                    p.get("date", ""),
+                    p.get("invoice_number", ""),
+                ])
+            return Response(
+                buf.getvalue(),
+                mimetype="text/csv",
+                headers={"Content-Disposition": "attachment; filename=my_data_export.csv"},
+            )
+        return jsonify(export), 200
+    except Exception as e:
+        logger.error("data_export failed: %s", type(e).__name__, exc_info=False)
+        return jsonify({"error": "Failed to generate data export"}), 500
+
+
+@user_bp.route("/api/user/delete-account", methods=["POST"])
+@require_auth
+def delete_account():
+    """
+    DPDP §12 — Right to Erasure / Consent Withdrawal.
+    Verifies password, then schedules account deletion 30 days out (cooling-off period).
+    Actual deletion is executed by the weekly cleanup job after the cooling-off expires.
+    """
+    import bcrypt
+    data = request.get_json(silent=True) or {}
+    password = (data.get("password") or "").strip()
+    if not password:
+        return jsonify({"error": "Password is required to confirm account deletion"}), 400
+    user_repo = RepoProvider.get_user_repo()
+    try:
+        user = user_repo.get_user_by_id(request.user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        # Verify password
+        hash_pw = user.get("HashPassword") or ""
+        if not bcrypt.checkpw(password.encode("utf-8"), hash_pw.encode("utf-8") if isinstance(hash_pw, str) else hash_pw):
+            return jsonify({"error": "Incorrect password"}), 401
+        # Schedule deletion 30 days out (DPDP §12 cooling-off)
+        scheduled_at = user_repo.schedule_account_deletion(request.user_id)
+        logger.info("Account deletion scheduled for user_id=%s at %s", request.user_id[:8] + "***", scheduled_at)
+        return jsonify({
+            "message": "Your account deletion has been scheduled. Your account will be permanently deleted in 30 days. You can cancel this within the cooling-off period by logging in.",
+            "deletion_scheduled_at": scheduled_at,
+        }), 200
+    except Exception as e:
+        logger.error("delete_account failed: %s", type(e).__name__, exc_info=False)
+        return jsonify({"error": "Failed to schedule account deletion. Please try again or contact support@scminsights.ai"}), 500
+
+
+@user_bp.route("/api/user/cancel-deletion", methods=["POST"])
+@require_auth
+def cancel_deletion():
+    """Cancel a previously scheduled account deletion within the 30-day cooling-off period."""
+    user_repo = RepoProvider.get_user_repo()
+    try:
+        ts = user_repo.get_deletion_scheduled_at(request.user_id)
+        if not ts:
+            return jsonify({"error": "No pending account deletion found."}), 400
+        user_repo.cancel_account_deletion(request.user_id)
+        logger.info("Account deletion cancelled for user_id=%s", request.user_id[:8] + "***")
+        return jsonify({"message": "Account deletion cancelled. Your account is safe."}), 200
+    except Exception as e:
+        logger.error("cancel_deletion failed: %s", type(e).__name__, exc_info=False)
+        return jsonify({"error": "Failed to cancel deletion. Please try again or contact support@scminsights.ai"}), 500
+
+
+@user_bp.route("/api/user/deletion-status", methods=["GET"])
+@require_auth
+def deletion_status():
+    """Return the scheduled deletion timestamp for the authenticated user, or null."""
+    user_repo = RepoProvider.get_user_repo()
+    try:
+        ts = user_repo.get_deletion_scheduled_at(request.user_id)
+        return jsonify({"deletion_scheduled_at": ts}), 200
+    except Exception as e:
+        logger.error("deletion_status failed: %s", type(e).__name__, exc_info=False)
+        return jsonify({"error": "Failed to check deletion status."}), 500

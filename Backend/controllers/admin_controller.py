@@ -1,8 +1,10 @@
 # SCM-INSIGHTS Admin Controller - users and overview only
+import logging
 from flask import Blueprint, request, jsonify
 from middlewares.auth_middleware import require_auth, require_admin
 from utils.helpers import validate_pagination_params
 
+logger = logging.getLogger(__name__)
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 
 
@@ -526,6 +528,22 @@ def get_transactions():
     }), 200
 
 
+@admin_bp.route("/transactions/clear-test", methods=["DELETE"])
+@require_auth
+@require_admin
+def clear_test_transactions():
+    """Delete all PaymentTransaction rows where IsTestMode = TRUE."""
+    from repositories.repo_provider import RepoProvider
+    admin_repo = RepoProvider.get_admin_repo()
+    try:
+        count = admin_repo.delete_test_transactions()
+        logger.info("Admin cleared %d test transactions", count)
+        return jsonify({"message": f"Deleted {count} test transaction{'' if count == 1 else 's'}.", "deleted": count}), 200
+    except Exception as e:
+        logger.error("clear_test_transactions failed: %s", e, exc_info=False)
+        return jsonify({"error": "Failed to clear test transactions."}), 500
+
+
 @admin_bp.route("/transactions/export", methods=["GET"])
 @require_auth
 @require_admin
@@ -577,3 +595,67 @@ def export_transactions():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=transactions.csv"},
     )
+
+
+# ---------- Payment Gateway Config ----------
+
+_SUPPORTED_GATEWAYS = {"razorpay", "checkout"}
+
+
+@admin_bp.route("/payment-gateway-config", methods=["GET"])
+@require_auth
+@require_admin
+def get_payment_gateway_config():
+    """Return all payment gateway configs with secrets masked."""
+    from repositories.repo_provider import RepoProvider
+    admin_repo = RepoProvider.get_admin_repo()
+    configs = admin_repo.get_payment_gateway_configs()
+    return jsonify(configs), 200
+
+
+@admin_bp.route("/payment-gateway-config", methods=["PUT"])
+@require_auth
+@require_admin
+def update_payment_gateway_config():
+    """Update one gateway's config. At least one gateway must remain active."""
+    from repositories.repo_provider import RepoProvider
+    data = request.json or {}
+    gateway_id = (data.get("gatewayId") or "").strip().lower()
+    if gateway_id not in _SUPPORTED_GATEWAYS:
+        return jsonify({"error": f"gatewayId must be one of: {', '.join(sorted(_SUPPORTED_GATEWAYS))}"}), 400
+
+    is_active = data.get("isActive")
+    if not isinstance(is_active, bool):
+        return jsonify({"error": "isActive must be a boolean"}), 400
+
+    key_id = (data.get("keyId") or "").strip()
+    key_secret = (data.get("keySecret") or "").strip()
+    webhook_secret = (data.get("webhookSecret") or "").strip()
+    extra_config = data.get("extraConfig") or {}
+    if not isinstance(extra_config, dict):
+        return jsonify({"error": "extraConfig must be an object"}), 400
+
+    admin_repo = RepoProvider.get_admin_repo()
+    updated_by = getattr(request, "user_id", None) or ""
+
+    # Enforce: cannot disable the last active gateway
+    if not is_active:
+        active_count = admin_repo.count_active_payment_gateways()
+        existing = next(
+            (c for c in admin_repo.get_payment_gateway_configs() if c.get("gatewayId") == gateway_id),
+            None,
+        )
+        currently_active = existing.get("isActive", False) if existing else False
+        if currently_active and active_count <= 1:
+            return jsonify({"error": "Cannot disable all payment gateways. Enable another gateway first."}), 400
+
+    admin_repo.upsert_payment_gateway_config(
+        gateway_id=gateway_id,
+        is_active=is_active,
+        key_id=key_id,
+        key_secret=key_secret,
+        webhook_secret=webhook_secret,
+        extra_config=extra_config,
+        updated_by=updated_by,
+    )
+    return jsonify({"message": f"{gateway_id} payment gateway config updated"}), 200

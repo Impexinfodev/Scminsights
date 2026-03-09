@@ -78,6 +78,17 @@ def create_app(config_override=None):
     from repositories.repo_provider import RepoProvider
     RepoProvider(app.config)
 
+    # Run idempotent ALTER TABLE migrations on every startup
+    try:
+        from repositories.repo_provider import RepoProvider as _RP
+        _admin_repo = _RP.get_admin_repo()
+        _user_repo = _RP.get_user_repo()
+        _admin_repo.apply_payment_transaction_alters()
+        if hasattr(_user_repo, "apply_user_profile_alters"):
+            _user_repo.apply_user_profile_alters()
+    except Exception as _e:
+        logger.warning("Startup migrations warning: %s", _e)
+
     from controllers.auth_controller import auth_bp
     from controllers.admin_controller import admin_bp
     from controllers.user_controller import user_bp

@@ -9,8 +9,6 @@ import {
   UserAdd01Icon,
   UserGroupIcon,
   ArrowRight01Icon,
-  Login02Icon,
-  UserIcon,
   CheckmarkCircle02Icon,
   Cancel01Icon,
   AlertCircleIcon,
@@ -67,21 +65,19 @@ function isPlanLowerThan(myType: string | null, cardType: string): boolean {
   return getPlanRank(cardType) < getPlanRank(myType);
 }
 
-function getAccessSummary(
-  access: AccessShape
-): { type: "full" | "limited" | "none"; text: string } {
+function getAccessSummary(access: AccessShape): { type: "full" | "limited" | "none"; text: string } {
   if (access.Access === "full") return { type: "full", text: "Unlimited access" };
   if (access.Access === "limited") {
     const maxRows = access.MaxRows ?? 0;
     const perSearch = access.MaxRowsPerSearch ?? 0;
     if (maxRows > 0) return { type: "limited", text: `${maxRows} rows, ${perSearch}/search` };
-    if (perSearch > 0) return { type: "limited", text: `Up to ${perSearch} rows/search` };
+    if (perSearch > 0) return { type: "limited", text: `Up to ${perSearch}/search` };
   }
   return { type: "none", text: "No access included" };
 }
 
 /* =========================================
-   Themes Definitions
+   Theme Definitions
    ========================================= */
 
 type PlanTheme = {
@@ -89,110 +85,112 @@ type PlanTheme = {
   badgeBg: string;
   badgeText: string;
   iconBg: string;
-  iconText: string;
+  iconColor: string;
   icon: typeof CrownIcon;
   ctaClass: string;
   isBestValue?: boolean;
-  borderClass: string;
+  cardBorder: string;
   ringClass: string;
 };
 
 const PLAN_THEMES: Record<string, PlanTheme> = {
   TRIAL: {
-    accentColor: "text-amber-600",
-    badgeBg: "bg-amber-100",
-    badgeText: "text-amber-800",
-    iconBg: "bg-amber-50 rounded-xl border border-amber-200",
-    iconText: "text-amber-500",
+    accentColor: "text-amber-500",
+    badgeBg: "bg-amber-50",
+    badgeText: "text-amber-600",
+    iconBg: "bg-amber-50 border border-amber-200",
+    iconColor: "text-amber-500",
     icon: StarIcon,
-    ctaClass: "bg-white border-2 border-gray-200 text-gray-800 hover:border-amber-400 hover:bg-amber-50",
-    borderClass: "border-gray-200 hover:border-amber-300",
+    ctaClass: "border-2 border-gray-200 bg-white text-gray-700 hover:border-amber-300 hover:bg-amber-50",
+    cardBorder: "border-amber-200",
     ringClass: "ring-amber-400",
   },
   DIRECTORY: {
     accentColor: "text-blue-600",
-    badgeBg: "bg-blue-100",
-    badgeText: "text-blue-800",
-    iconBg: "bg-blue-50 rounded-xl border border-blue-200",
-    iconText: "text-blue-500",
+    badgeBg: "bg-blue-50",
+    badgeText: "text-blue-600",
+    iconBg: "bg-blue-50 border border-blue-200",
+    iconColor: "text-blue-500",
     icon: Database01Icon,
-    ctaClass: "bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-600/20",
-    borderClass: "border-gray-200 hover:border-blue-300",
+    ctaClass: "border-2 border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50",
+    cardBorder: "border-gray-200",
     ringClass: "ring-blue-500",
   },
   TRADE: {
     accentColor: "text-purple-600",
-    badgeBg: "bg-purple-100",
-    badgeText: "text-purple-800",
-    iconBg: "bg-purple-50 rounded-xl border border-purple-200",
-    iconText: "text-purple-500",
+    badgeBg: "bg-purple-50",
+    badgeText: "text-purple-600",
+    iconBg: "bg-purple-50 border border-purple-200",
+    iconColor: "text-purple-500",
     icon: GlobalIcon,
-    ctaClass: "bg-purple-600 text-white hover:bg-purple-700 shadow-sm shadow-purple-600/20",
-    borderClass: "border-gray-200 hover:border-purple-300",
+    ctaClass: "border-2 border-gray-200 bg-white text-gray-700 hover:border-purple-300 hover:bg-purple-50",
+    cardBorder: "border-gray-200",
     ringClass: "ring-purple-500",
   },
   BUNDLE: {
     accentColor: "text-indigo-600",
-    badgeBg: "bg-indigo-600",
-    badgeText: "text-white",
-    iconBg: "bg-indigo-50 rounded-xl border border-indigo-200",
-    iconText: "text-indigo-600",
+    badgeBg: "bg-indigo-50",
+    badgeText: "text-indigo-600",
+    iconBg: "bg-indigo-50 border border-indigo-200",
+    iconColor: "text-indigo-600",
     icon: CrownIcon,
     ctaClass: "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-md shadow-indigo-500/25",
     isBestValue: true,
-    borderClass: "border-indigo-400 shadow-lg shadow-indigo-500/10",
+    cardBorder: "border-indigo-300 shadow-md shadow-indigo-100",
     ringClass: "ring-indigo-500",
   },
 };
 
-const DEFAULT_THEME: PlanTheme = {
-  ...PLAN_THEMES["TRIAL"],
-  icon: DiamondIcon,
-};
+const DEFAULT_THEME: PlanTheme = { ...PLAN_THEMES["TRIAL"], icon: DiamondIcon };
 
 /* =========================================
-   UI Components
+   AccessRow
    ========================================= */
 
 function AccessRow({ icon, label, access }: { icon: any; label: string; access: AccessShape }) {
   const { type, text } = getAccessSummary(access);
-
-  const statusColor =
-    type === "full" ? "text-emerald-500" : type === "limited" ? "text-amber-500" : "text-gray-300";
-
   return (
-    <div className="flex items-center gap-2 py-2 border-b border-gray-100 last:border-0 last:pb-0">
-      <div className={`p-1 rounded-md bg-gray-50 border border-gray-100`}>
-        <HugeiconsIcon icon={icon} size={12} className="text-gray-500" />
+    <div className="flex items-center gap-2 py-1.5">
+      <div className="w-5 h-5 rounded-md bg-gray-100 flex items-center justify-center shrink-0">
+        <HugeiconsIcon icon={icon} size={11} className="text-gray-500" />
       </div>
-      <div className="flex-1 text-xs text-gray-700 font-medium">{label}</div>
-      <div className="flex items-center gap-1 text-right">
-        <span className="text-xs text-gray-500 truncate max-w-[100px]">{text}</span>
-        <HugeiconsIcon
-          icon={type === "none" ? Cancel01Icon : type === "full" ? CheckmarkCircle02Icon : AlertCircleIcon}
-          size={16}
-          className={statusColor}
-        />
-      </div>
+      <span className="text-xs font-semibold text-gray-700 w-16 shrink-0">{label}</span>
+      <span className="text-xs text-gray-500 truncate flex-1">{text}</span>
+      <HugeiconsIcon
+        icon={type === "none" ? Cancel01Icon : CheckmarkCircle02Icon}
+        size={14}
+        className={type === "full" ? "text-emerald-500 shrink-0" : type === "limited" ? "text-amber-400 shrink-0" : "text-gray-300 shrink-0"}
+      />
     </div>
   );
 }
 
+/* =========================================
+   Skeleton
+   ========================================= */
+
 function PlanSkeleton() {
   return (
-    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 max-w-7xl mx-auto w-full" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif" }}>
+    <div className="flex flex-wrap justify-center gap-5">
       {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="flex flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-sm animate-pulse h-[480px]">
-          <div className="w-12 h-12 bg-gray-200 rounded-xl mb-4" />
-          <div className="h-5 bg-gray-200 rounded w-1/2 mb-2" />
-          <div className="h-8 bg-gray-200 rounded w-3/4 mb-6" />
-          <div className="h-4 bg-gray-200 rounded w-full mb-8" />
-          <div className="space-y-4 mb-auto">
-            <div className="h-10 bg-gray-100 rounded-lg w-full" />
-            <div className="h-10 bg-gray-100 rounded-lg w-full" />
-            <div className="h-10 bg-gray-100 rounded-lg w-full" />
+        <div
+          key={i}
+          className="flex flex-col rounded-2xl border border-gray-200 bg-white p-5 animate-pulse"
+          style={{ width: 270, minHeight: 480 }}
+        >
+          <div className="w-11 h-11 bg-gray-200 rounded-xl mb-4" />
+          <div className="h-5 bg-gray-200 rounded w-2/3 mb-1.5" />
+          <div className="h-3 bg-gray-200 rounded w-1/3 mb-4" />
+          <div className="h-4 bg-gray-200 rounded w-full mb-1" />
+          <div className="h-4 bg-gray-200 rounded w-5/6 mb-6" />
+          <div className="h-8 bg-gray-200 rounded w-1/2 mb-1" />
+          <div className="h-3 bg-gray-200 rounded w-1/3 mb-6" />
+          <div className="space-y-2 flex-1 mb-6">
+            <div className="h-8 bg-gray-100 rounded-lg" />
+            <div className="h-8 bg-gray-100 rounded-lg" />
+            <div className="h-8 bg-gray-100 rounded-lg" />
           </div>
-          <div className="h-12 bg-gray-200 rounded-xl w-full mt-6" />
+          <div className="h-11 bg-gray-200 rounded-xl" />
         </div>
       ))}
     </div>
@@ -209,73 +207,48 @@ export default function PlansPageClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [myLicenseType, setMyLicenseType] = useState<string | null>(null);
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+  const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL ?? "").trim();
 
-  // Fetch Plans
   useEffect(() => {
-    if (!backendUrl) {
-      setLoading(false);
-      return;
-    }
-
-    const abortController = new AbortController();
-    const fetchPlans = async () => {
-      try {
-        const res = await axios.get(`${backendUrl}/api/plans`, {
-          signal: abortController.signal,
-          timeout: API_REQUEST_TIMEOUT,
-        });
-        if (Array.isArray(res.data)) {
-          setPlans(res.data);
-          setError(null);
-        } else {
-          throw new Error("Invalid format");
-        }
-        setLoading(false);
-      } catch (err: any) {
+    if (!backendUrl) { setLoading(false); return; }
+    const ctrl = new AbortController();
+    axios
+      .get(`${backendUrl}/api/plans`, { signal: ctrl.signal, timeout: API_REQUEST_TIMEOUT })
+      .then((res) => {
+        if (Array.isArray(res.data)) { setPlans(res.data); setError(null); }
+        else throw new Error("Invalid format");
+      })
+      .catch((err) => {
         if (axios.isCancel(err) || err.name === "AbortError" || err.name === "CanceledError") return;
-        console.error("Failed to fetch plans:", err);
-        setError("Unable to load securely. Please refresh or try again later.");
+        setError("Unable to load plans. Please refresh or try again later.");
         setPlans([]);
-        setLoading(false);
-      }
-    };
-
-    fetchPlans();
-    return () => abortController.abort();
+      })
+      .finally(() => setLoading(false));
+    return () => ctrl.abort();
   }, [backendUrl]);
 
-  // Fetch User License info
   useEffect(() => {
     if (!isLoggedIn || !sessionToken || !backendUrl) return;
-
-    const abortController = new AbortController();
-    const fetchUser = async () => {
-      try {
-        const res = await axios.get(`${backendUrl}/userLicenseInfo`, {
-          headers: { "Session-Token": sessionToken },
-          signal: abortController.signal,
-          timeout: API_REQUEST_TIMEOUT,
-        });
-        setMyLicenseType(res.data?.LicenseType ?? null);
-      } catch (err: any) {
+    const ctrl = new AbortController();
+    axios
+      .get(`${backendUrl}/userLicenseInfo`, {
+        headers: { "Session-Token": sessionToken },
+        signal: ctrl.signal,
+        timeout: API_REQUEST_TIMEOUT,
+      })
+      .then((res) => setMyLicenseType(res.data?.LicenseType ?? null))
+      .catch((err) => {
         if (axios.isCancel(err) || err.name === "AbortError" || err.name === "CanceledError") return;
-        console.error("Failed to sync license");
-      }
-    };
-
-    fetchUser();
-    return () => abortController.abort();
+      });
+    return () => ctrl.abort();
   }, [isLoggedIn, sessionToken, backendUrl]);
 
   return (
-    <div className="min-h-screen bg-white pb-12 selection:bg-blue-100 text-gray-900" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif" }}>
+    <div className="min-h-screen bg-white pb-16 selection:bg-blue-100 text-gray-900">
 
-      {/* Hero Section */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-white pt-24 pb-10 lg:pt-28 lg:pb-14 text-center rounded-b-2xl shadow-sm mb-8 border-b border-blue-100">
+      {/* Hero */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-white pt-24 pb-10 lg:pt-28 lg:pb-14 text-center border-b border-blue-100 mb-10">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-blue-200/20 via-indigo-100/10 to-transparent" />
-        <div className="absolute inset-0 bg-grid-pattern opacity-[0.02]" />
-
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -286,9 +259,14 @@ export default function PlansPageClient() {
             <HugeiconsIcon icon={FlashIcon} size={12} className="text-amber-500" />
             50M+ Verified Trade Records · Global Reach
           </div>
-
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 tracking-tight mb-4 leading-tight">
-            Pricing that scales with <br className="hidden md:block" /> your <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">global trade</span>.
+            Pricing that scales with{" "}
+            <br className="hidden md:block" />
+            your{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+              global trade
+            </span>
+            .
           </h1>
           <p className="text-gray-600 max-w-xl mx-auto text-sm md:text-base leading-relaxed font-medium">
             Start completely for free. Instantly access verified global buyers, suppliers, and detailed HS code insights. Upgrade seamlessly as you grow.
@@ -297,9 +275,9 @@ export default function PlansPageClient() {
       </div>
 
       {/* Plans Container */}
-      <div className="mx-auto px-4 sm:px-12 lg:px-32" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif" }}>
-
+      <div className="mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
         <AnimatePresence mode="wait">
+
           {loading && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <PlanSkeleton />
@@ -308,7 +286,7 @@ export default function PlansPageClient() {
 
           {error && !loading && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-xl mx-auto">
-              <div className="rounded-2xl bg-red-50 border border-red-200 p-8 flex flex-col items-center text-center" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif" }}>
+              <div className="rounded-2xl bg-red-50 border border-red-200 p-8 flex flex-col items-center text-center">
                 <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mb-4">
                   <HugeiconsIcon icon={AlertCircleIcon} size={28} className="text-red-600" />
                 </div>
@@ -328,52 +306,62 @@ export default function PlansPageClient() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className={`grid gap-4 ${plans.length === 3 ? "lg:grid-cols-3 md:grid-cols-3 max-w-7xl mx-auto" : "lg:grid-cols-4 sm:grid-cols-2 max-w-full mx-auto"}`}
+              className="flex flex-wrap justify-center gap-5"
             >
               {plans.map((plan, index) => {
                 const theme = PLAN_THEMES[plan.LicenseType] ?? DEFAULT_THEME;
                 const isCurrent = isLoggedIn && myLicenseType === plan.LicenseType;
-                const isUserOnTopPlan = isLoggedIn && (myLicenseType === "BUNDLE" || plans.some((p) => p.LicenseType === myLicenseType && p.IsTopPlan));
-                const canUpgrade = isLoggedIn && !isCurrent && !isUserOnTopPlan && isPlanHigherThan(myLicenseType, plan.LicenseType);
-                const canDowngrade = isLoggedIn && !isCurrent && isPlanLowerThan(myLicenseType, plan.LicenseType);
+                const isUserOnTopPlan =
+                  isLoggedIn &&
+                  (myLicenseType === "BUNDLE" ||
+                    plans.some((p) => p.LicenseType === myLicenseType && p.IsTopPlan));
+                const canUpgrade =
+                  isLoggedIn && !isCurrent && !isUserOnTopPlan && isPlanHigherThan(myLicenseType, plan.LicenseType);
+                const canDowngrade =
+                  isLoggedIn && !isCurrent && isPlanLowerThan(myLicenseType, plan.LicenseType);
 
                 const { inrFormatted, usdFormatted, inIndia } = getPlanPriceBoth(plan);
-                const isFree = inrFormatted === "Free" || usdFormatted === "Free" || plan.Price === 0;
+                const isFree = plan.Price === 0 || inrFormatted === "Free" || usdFormatted === "Free";
 
-                const priceDisplay = inIndia && !isFree ? inrFormatted : isFree ? "Free Forever" : usdFormatted;
-                const priceSubtext = !inIndia && !isFree ? inrFormatted : null;
+                // Primary price shown large, secondary shown small beside
+                const primaryPrice = inIndia && !isFree ? inrFormatted : isFree ? "Free Forever" : usdFormatted;
+                const secondaryPrice = !isFree ? (inIndia ? usdFormatted : inrFormatted) : null;
 
                 return (
                   <motion.div
                     key={plan.LicenseType}
-                    initial={{ opacity: 0, y: 30 }}
+                    initial={{ opacity: 0, y: 24 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.1 * index, ease: "easeOut" }}
+                    transition={{ duration: 0.45, delay: 0.08 * index, ease: "easeOut" }}
                     className={`
-                      relative flex flex-col rounded-2xl bg-white border-2 overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-lg
-                      ${isCurrent ? `ring-2 ring-offset-2 ${theme.ringClass}` : theme.borderClass}
+                      relative flex flex-col rounded-2xl bg-white border-2 transition-all duration-300
+                      hover:-translate-y-1.5 hover:shadow-xl
+                      ${isCurrent
+                        ? `ring-2 ring-offset-2 ${theme.ringClass} ${theme.cardBorder}`
+                        : `${theme.cardBorder} hover:shadow-lg`
+                      }
                     `}
+                    style={{ width: 270, minWidth: 240, maxWidth: 300 }}
                   >
-
-                    {/* Header Badges */}
-                    <div className="h-2 w-full bg-gradient-to-r from-blue-100 to-indigo-100 absolute top-0 left-0" />
-                    {(theme.isBestValue || isCurrent) && (
-                      <div className="absolute top-0 inset-x-0 flex justify-center">
-                        <div className={`${isCurrent ? "bg-blue-700 text-white" : theme.badgeBg + " " + theme.badgeText} text-xs font-bold px-4 py-1.5 rounded-b-lg flex items-center gap-1.5 shadow-sm `}>
-                          <HugeiconsIcon icon={isCurrent ? CheckmarkCircle02Icon : CrownIcon} size={13} />
-                          {isCurrent ? "Current Plan" : "Most Popular"}
+                    {/* Current Plan badge */}
+                    {isCurrent && (
+                      <div className="absolute -top-px inset-x-0 flex justify-center">
+                        <div className="bg-blue-700 text-white text-[10px] font-bold px-3 py-1 rounded-b-lg flex items-center gap-1 shadow-sm">
+                          <HugeiconsIcon icon={CheckmarkCircle02Icon} size={11} />
+                          Current Plan
                         </div>
                       </div>
                     )}
 
-                    <div className="p-5 pt-9 flex-1 flex flex-col" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif" }}>
-                      {/* Brand Icon & Title */}
-                      <div className="flex items-start gap-3 mb-4">
-                        <div className={`w-10 h-10 flex items-center justify-center shrink-0 ${theme.iconBg}`}>
-                          <HugeiconsIcon icon={theme.icon} size={20} className={theme.iconText} />
+                    <div className={`flex flex-col flex-1 p-5 ${isCurrent ? "pt-8" : "pt-5"}`}>
+
+                      {/* Icon + Name + Badge */}
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${theme.iconBg}`}>
+                          <HugeiconsIcon icon={theme.icon} size={22} className={theme.iconColor} />
                         </div>
-                        <div>
-                          <h3 className="text-base font-bold text-gray-900 tracking-tight leading-snug">
+                        <div className="min-w-0">
+                          <h3 className="text-[15px] font-bold text-gray-900 leading-snug truncate">
                             {plan.LicenseName || plan.LicenseType}
                           </h3>
                           <span className={`text-[9px] font-bold uppercase tracking-widest ${theme.accentColor}`}>
@@ -382,74 +370,68 @@ export default function PlansPageClient() {
                         </div>
                       </div>
 
-                      <p className="text-xs text-gray-600 leading-snug mb-5 min-h-[40px] font-medium">
+                      {/* Description */}
+                      <p className="text-xs text-gray-500 leading-relaxed mb-4 min-h-[36px]">
                         {plan.ShortDescription}
                       </p>
 
-                      {/* Pricing Block */}
-                      <div className="mb-6 pb-5 border-b border-gray-200 flex items-center justify-between gap-2" >
-                        <div className="flex items-baseline gap-1.5">
-                          <span className={`text-4xl font-bold tracking-tight ${isFree ? "text-emerald-600" : "text-gray-900"}`}>
-                            {priceDisplay}
+                      {/* Pricing */}
+                      <div className="mb-4 pb-4 border-b border-gray-100">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className={`text-3xl font-bold tracking-tight ${isFree ? "text-emerald-600" : "text-gray-900"}`}>
+                            {primaryPrice}
                           </span>
                           {!isFree && plan.Validity && (
-                            <span className="text-xs font-semibold text-gray-500">/{plan.Validity.toLowerCase()}</span>
+                            <span className="text-xs text-gray-400 font-semibold">
+                              /{plan.Validity.toLowerCase()}
+                            </span>
                           )}
                         </div>
-                        {priceSubtext && (
-                          <div className="text-lg text-gray-500 font-semibold mt-1.5">
-                            {priceSubtext}
-                          </div>
+                        {secondaryPrice && (
+                          <p className="text-sm text-gray-400 font-medium mt-0.5">{secondaryPrice}</p>
                         )}
                       </div>
 
-                      {/* Feature Checklist */}
-                      <div className="space-y-0.5 flex-1 mb-6" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif" }}>
-                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Features</h4>
+                      {/* Features */}
+                      <div className="flex-1 mb-5">
+                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+                          Features
+                        </p>
                         <AccessRow icon={Database01Icon} label="Directory" access={plan.Directory} />
                         <AccessRow icon={UserAdd01Icon} label="Buyers" access={plan.Buyers} />
                         <AccessRow icon={UserGroupIcon} label="Suppliers" access={plan.Suppliers} />
                       </div>
 
-                      {/* CTA Buttons */}
+                      {/* CTA */}
                       <div className="mt-auto">
                         {!isLoggedIn ? (
-                          <div className="space-y-3">
-                            <Link
-                              href="/signup"
-                              className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold transition-all ${theme.ctaClass}`}
-                            >
-                              Get Started <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
-                            </Link>
-                            {!isFree && (
-                              <Link
-                                href="/login"
-                                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-transparent text-gray-500 text-sm font-semibold hover:bg-gray-50 hover:text-gray-800 transition-colors"
-                              >
-                                Log in to existing
-                              </Link>
-                            )}
-                          </div>
+                          <Link
+                            href="/signup"
+                            className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all ${theme.ctaClass}`}
+                          >
+                            Get Started
+                            <HugeiconsIcon icon={ArrowRight01Icon} size={15} />
+                          </Link>
                         ) : isCurrent ? (
                           <Link
                             href="/plan"
-                            className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl border-2 border-gray-200 bg-gray-50 text-gray-700 text-sm font-bold hover:border-gray-300 hover:bg-gray-100 transition-all focus:ring-4 focus:ring-gray-100"
+                            className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-700 text-sm font-bold hover:border-gray-300 hover:bg-gray-50 transition-all"
                           >
                             Manage Plan
-                            <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
+                            <HugeiconsIcon icon={ArrowRight01Icon} size={15} />
                           </Link>
                         ) : canUpgrade ? (
                           <Link
                             href={`/checkout?plan=${encodeURIComponent(plan.LicenseType)}`}
-                            className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold transition-all ${theme.ctaClass}`}
+                            className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all ${theme.ctaClass}`}
                           >
                             Upgrade Now
-                            <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
+                            <HugeiconsIcon icon={ArrowRight01Icon} size={15} />
                           </Link>
                         ) : canDowngrade ? (
                           <Link
                             href="/contact"
-                            className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl border-2 border-gray-200 text-gray-500 text-sm font-bold hover:bg-gray-50 transition-colors"
+                            className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 text-gray-500 text-sm font-bold hover:bg-gray-50 transition-colors"
                           >
                             Contact to Change
                           </Link>
@@ -464,40 +446,46 @@ export default function PlansPageClient() {
           )}
 
           {!loading && plans.length === 0 && !error && (
-            <div className="text-center py-24 bg-gradient-to-br from-blue-50 to-white border border-blue-200 rounded-2xl max-w-2xl mx-auto shadow-sm" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif" }}>
+            <div className="text-center py-24 bg-gradient-to-br from-blue-50 to-white border border-blue-200 rounded-2xl max-w-2xl mx-auto shadow-sm">
               <HugeiconsIcon icon={Database01Icon} size={52} className="mx-auto text-blue-300 mb-5" />
               <h3 className="text-2xl font-bold text-gray-900 mb-2">No plans available</h3>
-              <p className="text-gray-600 font-medium">We are currently updating our pricing tiers. Please check back shortly.</p>
+              <p className="text-gray-600 font-medium">
+                We are currently updating our pricing tiers. Please check back shortly.
+              </p>
             </div>
           )}
 
         </AnimatePresence>
 
-        {/* Global Footer Assurances */}
+        {/* Footer Assurances */}
         {!loading && plans.length > 0 && !error && (
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
-            className="mt-10 pt-6 border-t border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 px-4" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="mt-10 pt-6 border-t border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 px-2"
           >
-            <div className="flex items-center gap-2 text-xs text-gray-700 bg-white border border-gray-200 py-2 px-4 rounded-full shadow-sm hover:shadow-md transition-all">
-              <HugeiconsIcon icon={Shield01Icon} size={15} className="text-emerald-500" aria-hidden="true" />
-              <span className="font-semibold inline-flex gap-1.5 items-center">
+            <div className="flex items-center gap-2 text-xs text-gray-700 bg-white border border-gray-200 py-2 px-4 rounded-full shadow-sm">
+              <HugeiconsIcon icon={Shield01Icon} size={14} className="text-emerald-500" />
+              <span className="font-semibold">
                 Secured via <span className="font-black text-gray-900">Razorpay</span>
               </span>
             </div>
-
             {isLoggedIn && (
               <Link
                 href="/plan"
                 className="group flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 font-semibold text-xs transition-colors py-2 px-3 rounded-full hover:bg-indigo-50"
               >
                 View usage
-                <HugeiconsIcon icon={ArrowRight01Icon} size={13} className="group-hover:translate-x-0.5 transition-transform" />
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  size={13}
+                  className="group-hover:translate-x-0.5 transition-transform"
+                />
               </Link>
             )}
           </motion.div>
         )}
-
       </div>
     </div>
   );

@@ -11,6 +11,14 @@ import {
   Download01Icon,
   ArrowRight01Icon,
   ArrowLeft01Icon,
+  Copy01Icon,
+  Mail01Icon,
+  UserIcon,
+  RupeeCircleIcon,
+  Calendar01Icon,
+  GlobalIcon,
+  CheckmarkCircle02Icon,
+  InformationCircleIcon,
 } from "@hugeicons/core-free-icons";
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
@@ -31,6 +39,7 @@ type Transaction = {
   MetadataJson: string | null;
   CreatedAt: string;
   UpdatedAt: string;
+  IsTestMode?: boolean;
 };
 
 type Pagination = {
@@ -39,6 +48,202 @@ type Pagination = {
   total: number;
   total_pages: number;
 };
+
+// ─── Copy helper ──────────────────────────────────────────────────────────────
+
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = React.useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title="Copy to clipboard"
+      className="ml-1.5 p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0"
+    >
+      <HugeiconsIcon icon={copied ? CheckmarkCircle02Icon : Copy01Icon} size={13} className={copied ? "text-emerald-500" : ""} />
+    </button>
+  );
+}
+
+// ─── Status badge ─────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { bg: string; text: string; dot: string }> = {
+    captured: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500" },
+    created:  { bg: "bg-amber-50",   text: "text-amber-700",   dot: "bg-amber-400"  },
+    failed:   { bg: "bg-red-50",     text: "text-red-700",     dot: "bg-red-500"    },
+  };
+  const s = map[status?.toLowerCase()] ?? { bg: "bg-gray-100", text: "text-gray-600", dot: "bg-gray-400" };
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${s.bg} ${s.text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+      {status || "—"}
+    </span>
+  );
+}
+
+// ─── Detail row ───────────────────────────────────────────────────────────────
+
+function DetailRow({ label, value, mono = false, copyable = false, icon }: {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+  copyable?: boolean;
+  icon?: any;
+}) {
+  return (
+    <div className="flex items-start gap-3 py-2.5 border-b border-gray-50 last:border-0">
+      {icon && (
+        <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
+          <HugeiconsIcon icon={icon} size={14} className="text-gray-500" />
+        </div>
+      )}
+      <div className={`flex-1 min-w-0 ${icon ? "" : "pl-10"}`}>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">{label}</p>
+        <div className={`flex items-center gap-1 ${mono ? "font-mono text-xs" : "text-sm"} text-gray-800 font-medium`}>
+          <span className="break-all">{value || "—"}</span>
+          {copyable && typeof value === "string" && value && <CopyButton value={value} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Transaction Detail Modal ─────────────────────────────────────────────────
+
+function TransactionDetailModal({
+  tx,
+  onClose,
+  amountRupees,
+  formatDate,
+}: {
+  tx: Transaction;
+  onClose: () => void;
+  amountRupees: (p: number) => string;
+  formatDate: (s: string) => string;
+}) {
+  const isCaptured = tx.Status?.toLowerCase() === "captured";
+
+  let metadata: Record<string, any> | null = null;
+  if (tx.MetadataJson) {
+    try {
+      metadata = typeof tx.MetadataJson === "string" ? JSON.parse(tx.MetadataJson) : tx.MetadataJson;
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.96, opacity: 0, y: 8 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.96, opacity: 0, y: 8 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] overflow-hidden flex flex-col"
+      >
+        {/* ── Header ── */}
+        <div className={`px-5 pt-5 pb-4 ${isCaptured ? "bg-gradient-to-br from-emerald-50 to-white" : "bg-gradient-to-br from-amber-50 to-white"}`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-sm ${isCaptured ? "bg-emerald-100" : "bg-amber-100"}`}>
+                <HugeiconsIcon icon={Ticket01Icon} size={22} className={isCaptured ? "text-emerald-600" : "text-amber-600"} />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-gray-900 leading-snug">Transaction #{tx.Id}</h2>
+                <p className="text-xs text-gray-500 mt-0.5">{formatDate(tx.CreatedAt)}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors mt-0.5"
+            >
+              <HugeiconsIcon icon={Cancel01Icon} size={18} />
+            </button>
+          </div>
+
+          {/* Amount + Status strip */}
+          <div className="mt-4 flex items-center justify-between gap-3 p-3 rounded-xl bg-white/70 border border-gray-100 shadow-sm">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Amount</p>
+              <p className="text-2xl font-bold text-gray-900 tabular-nums">₹{amountRupees(tx.AmountPaise)}</p>
+              <p className="text-xs text-gray-400 font-medium">{tx.Currency || "INR"}</p>
+            </div>
+            <div className="text-right flex flex-col items-end gap-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Status</p>
+              <StatusBadge status={tx.Status} />
+              {tx.IsTestMode && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 tracking-wide">TEST MODE</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Body ── */}
+        <div className="flex-1 overflow-y-auto px-5 py-3">
+
+          {/* User Details */}
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 mt-1">User Details</p>
+          <div className="bg-gray-50 rounded-xl px-4 py-1 mb-4">
+            <DetailRow label="Email" value={tx.EmailId} icon={Mail01Icon} copyable />
+            <DetailRow label="User ID" value={tx.UserId} icon={UserIcon} mono copyable />
+            <DetailRow label="Plan" value={
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700">
+                {tx.LicenseType || "—"}
+              </span>
+            } icon={InformationCircleIcon} />
+          </div>
+
+          {/* Payment Details */}
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Payment Details</p>
+          <div className="bg-gray-50 rounded-xl px-4 py-1 mb-4">
+            <DetailRow label="Order ID" value={tx.RazorpayOrderId} icon={RupeeCircleIcon} mono copyable />
+            <DetailRow label="Payment ID" value={tx.RazorpayPaymentId || "—"} icon={RupeeCircleIcon} mono copyable={!!tx.RazorpayPaymentId} />
+            <DetailRow label="Source Website" value={tx.SourceWebsite} icon={GlobalIcon} />
+            <DetailRow label="Last Updated" value={formatDate(tx.UpdatedAt)} icon={Calendar01Icon} />
+          </div>
+
+          {/* Metadata */}
+          {metadata && (
+            <>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Metadata</p>
+              <div className="bg-gray-50 rounded-xl p-3 mb-4">
+                <pre className="text-xs text-gray-700 overflow-x-auto whitespace-pre-wrap break-all leading-relaxed">
+                  {JSON.stringify(metadata, null, 2)}
+                </pre>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ── Footer ── */}
+        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AdminTransactionsPage() {
   const router = useRouter();
@@ -374,7 +579,12 @@ export default function AdminTransactionsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
-                        {t.LicenseType}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {t.LicenseType}
+                          {t.IsTestMode && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 tracking-wide">TEST</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900 text-right font-medium tabular-nums">
                         ₹{amountRupees(t.AmountPaise)}
@@ -453,76 +663,12 @@ export default function AdminTransactionsPage() {
       {/* Detail modal */}
       <AnimatePresence>
         {detailRow && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-            onClick={() => setDetailRow(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col"
-            >
-              <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                <h2 className="text-lg font-bold text-gray-900">
-                  Transaction details
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setDetailRow(null)}
-                  className="p-2 rounded-lg hover:bg-gray-100"
-                >
-                  <HugeiconsIcon icon={Cancel01Icon} size={20} />
-                </button>
-              </div>
-              <div className="p-4 overflow-y-auto space-y-3 text-sm">
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                  <span className="text-gray-500">ID</span>
-                  <span className="font-mono">{detailRow.Id}</span>
-                  <span className="text-gray-500">Date</span>
-                  <span>{formatDate(detailRow.CreatedAt)}</span>
-                  <span className="text-gray-500">Order ID</span>
-                  <span className="font-mono break-all">
-                    {detailRow.RazorpayOrderId}
-                  </span>
-                  <span className="text-gray-500">Payment ID</span>
-                  <span className="font-mono break-all">
-                    {detailRow.RazorpayPaymentId || "—"}
-                  </span>
-                  <span className="text-gray-500">User ID</span>
-                  <span className="break-all">{detailRow.UserId}</span>
-                  <span className="text-gray-500">Email</span>
-                  <span className="break-all">{detailRow.EmailId}</span>
-                  <span className="text-gray-500">Plan</span>
-                  <span>{detailRow.LicenseType}</span>
-                  <span className="text-gray-500">Amount</span>
-                  <span className="font-semibold">
-                    ₹{amountRupees(detailRow.AmountPaise)} {detailRow.Currency}
-                  </span>
-                  <span className="text-gray-500">Status</span>
-                  <span>{detailRow.Status}</span>
-                  <span className="text-gray-500">Website</span>
-                  <span>{detailRow.SourceWebsite || "—"}</span>
-                  <span className="text-gray-500">Updated</span>
-                  <span>{formatDate(detailRow.UpdatedAt)}</span>
-                </div>
-                {detailRow.MetadataJson && (
-                  <div>
-                    <span className="text-gray-500 block mb-1">Metadata</span>
-                    <pre className="p-3 rounded-lg bg-gray-50 text-xs overflow-x-auto">
-                      {typeof detailRow.MetadataJson === "string"
-                        ? detailRow.MetadataJson
-                        : JSON.stringify(detailRow.MetadataJson, null, 2)}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </motion.div>
+          <TransactionDetailModal
+            tx={detailRow}
+            onClose={() => setDetailRow(null)}
+            amountRupees={amountRupees}
+            formatDate={formatDate}
+          />
         )}
       </AnimatePresence>
     </div>

@@ -29,6 +29,8 @@ from modules.db.postgres_models import (
     DROP_CONTACT_TABLE,
     DROP_SIMS_DIRECTORY_TABLE,
     DROP_PAYMENT_TABLE,
+    CREATE_PAYMENT_GATEWAY_CONFIG_TABLE,
+    PAYMENT_TRANSACTION_ALTER_STATEMENTS,
 )
 from psycopg_pool import ConnectionPool
 
@@ -534,11 +536,12 @@ class PostgresAdminRepository(AdminRepository):
         razorpay_payment_id=None,
         metadata_json=None,
         source_website=None,
+        is_test_mode=False,
     ):
         cursor.execute(
             """INSERT INTO PaymentTransaction
-               (RazorpayOrderId, RazorpayPaymentId, UserId, EmailId, LicenseType, AmountPaise, Currency, Status, SourceWebsite, MetadataJson, UpdatedAt)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)""",
+               (RazorpayOrderId, RazorpayPaymentId, UserId, EmailId, LicenseType, AmountPaise, Currency, Status, SourceWebsite, MetadataJson, IsTestMode, UpdatedAt)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)""",
             (
                 razorpay_order_id,
                 razorpay_payment_id,
@@ -550,8 +553,18 @@ class PostgresAdminRepository(AdminRepository):
                 status,
                 (source_website or "").strip() or None,
                 json.dumps(metadata_json) if metadata_json is not None else None,
+                bool(is_test_mode),
             ),
         )
+
+    @with_connection(commit=True)
+    def delete_test_transactions(self, cursor) -> int:
+        """Delete all transactions created in test/sandbox mode. Returns count deleted."""
+        cursor.execute("SELECT COUNT(*) FROM PaymentTransaction WHERE IsTestMode = TRUE")
+        count = (cursor.fetchone() or [0])[0]
+        if count > 0:
+            cursor.execute("DELETE FROM PaymentTransaction WHERE IsTestMode = TRUE")
+        return count
 
     @with_connection(commit=True)
     def update_payment_transaction(
@@ -600,7 +613,7 @@ class PostgresAdminRepository(AdminRepository):
             params.append(website.strip())
         where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
         cursor.execute(
-            f"""SELECT Id, RazorpayOrderId, RazorpayPaymentId, UserId, EmailId, LicenseType, AmountPaise, Currency, Status, SourceWebsite, MetadataJson, CreatedAt, UpdatedAt
+            f"""SELECT Id, RazorpayOrderId, RazorpayPaymentId, UserId, EmailId, LicenseType, AmountPaise, Currency, Status, SourceWebsite, MetadataJson, CreatedAt, UpdatedAt, COALESCE(IsTestMode, FALSE)
                 FROM PaymentTransaction {where}
                 ORDER BY CreatedAt {order}
                 LIMIT %s OFFSET %s""",
@@ -624,6 +637,7 @@ class PostgresAdminRepository(AdminRepository):
                 "MetadataJson": r[10],
                 "CreatedAt": r[11].isoformat() if r[11] and hasattr(r[11], "isoformat") else str(r[11]),
                 "UpdatedAt": r[12].isoformat() if r[12] and hasattr(r[12], "isoformat") else str(r[12]),
+                "IsTestMode": bool(r[13]),
             }
         return [_row_to_dict(r) for r in rows], total
 
@@ -652,3 +666,124 @@ class PostgresAdminRepository(AdminRepository):
             "CreatedAt": row[11].isoformat() if row[11] and hasattr(row[11], "isoformat") else str(row[11]),
             "UpdatedAt": row[12].isoformat() if row[12] and hasattr(row[12], "isoformat") else str(row[12]),
         }
+
+    # ------------------------------------------------------------------
+    # Payment Gateway Config (DB-managed keys — Admin UI)
+    # ------------------------------------------------------------------
+
+    @with_connection(commit=False)
+    def get_payment_gateway_configs(self, cursor):
+        """Return all gateway configs with secrets masked."""
+        cursor.execute(CREATE_PAYMENT_GATEWAY_CONFIG_TABLE)
+        cursor.execute(
+            "SELECT GatewayId, IsActive, KeyId, KeySecret, WebhookSecret, "
+            "ExtraConfigJson, UpdatedAt, UpdatedBy "
+            "FROM PaymentGatewayConfig ORDER BY GatewayId"
+        )
+        rows = cursor.fetchall() or []
+        result = []
+        for row in rows:
+            extra = {}
+            try:
+                extra = json.loads(row[5] or "{}")
+            except Exception:
+                pass
+            result.append({
+                "gatewayId":           row[0],
+                "isActive":            row[1],
+                "keyId":               row[2],
+                "keySecretMasked":     _mask_secret(row[3]),
+                "webhookSecretMasked": _mask_secret(row[4]),
+                "extraConfig":         extra,
+                "updatedAt":           row[6].isoformat() if row[6] else None,
+                "updatedBy":           row[7],
+            })
+        return result
+
+    @with_connection(commit=True)
+    def upsert_payment_gateway_config(
+        self, cursor, gateway_id, is_active, key_id,
+        key_secret, webhook_secret, extra_config, updated_by,
+    ):
+        """Upsert a gateway config row. Masked/empty secrets keep the existing DB value."""
+        cursor.execute(CREATE_PAYMENT_GATEWAY_CONFIG_TABLE)
+
+        def _is_unchanged(val):
+            return not val or (isinstance(val, str) and val.startswith("*"))
+
+        cursor.execute(
+            "SELECT KeySecret, WebhookSecret FROM PaymentGatewayConfig WHERE GatewayId = %s",
+            (gateway_id,),
+        )
+        existing = cursor.fetchone()
+        final_secret  = (existing[0] if existing else None) if _is_unchanged(key_secret)      else key_secret
+        final_webhook = (existing[1] if existing else None) if _is_unchanged(webhook_secret)   else webhook_secret
+
+        from datetime import datetime, timezone
+        cursor.execute(
+            """
+            INSERT INTO PaymentGatewayConfig
+                (GatewayId, IsActive, KeyId, KeySecret, WebhookSecret, ExtraConfigJson, UpdatedAt, UpdatedBy)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (GatewayId) DO UPDATE SET
+                IsActive        = EXCLUDED.IsActive,
+                KeyId           = EXCLUDED.KeyId,
+                KeySecret       = EXCLUDED.KeySecret,
+                WebhookSecret   = EXCLUDED.WebhookSecret,
+                ExtraConfigJson = EXCLUDED.ExtraConfigJson,
+                UpdatedAt       = EXCLUDED.UpdatedAt,
+                UpdatedBy       = EXCLUDED.UpdatedBy
+            """,
+            (
+                gateway_id, is_active,
+                (key_id or "").strip() or None,
+                final_secret, final_webhook,
+                json.dumps(extra_config or {}),
+                datetime.now(timezone.utc),
+                updated_by,
+            ),
+        )
+
+    @with_connection(commit=False)
+    def count_active_payment_gateways(self, cursor):
+        """Return count of gateways with IsActive = TRUE."""
+        cursor.execute(CREATE_PAYMENT_GATEWAY_CONFIG_TABLE)
+        cursor.execute("SELECT COUNT(*) FROM PaymentGatewayConfig WHERE IsActive = TRUE")
+        row = cursor.fetchone()
+        return row[0] if row else 0
+
+    @with_connection(commit=False)
+    def get_raw_gateway_secret(self, cursor, gateway_id):
+        """Return (KeyId, KeySecret, WebhookSecret, ExtraConfigJson) unmasked. Internal use only."""
+        cursor.execute(CREATE_PAYMENT_GATEWAY_CONFIG_TABLE)
+        cursor.execute(
+            "SELECT KeyId, KeySecret, WebhookSecret, ExtraConfigJson, IsActive "
+            "FROM PaymentGatewayConfig WHERE GatewayId = %s",
+            (gateway_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        extra = {}
+        try:
+            extra = json.loads(row[3] or "{}")
+        except Exception:
+            pass
+        return {"key_id": row[0], "key_secret": row[1], "webhook_secret": row[2], "extra": extra, "is_active": row[4]}
+
+    @with_connection(commit=True)
+    def apply_payment_transaction_alters(self, cursor):
+        """Add Checkout.com columns to PaymentTransaction (idempotent)."""
+        for stmt in PAYMENT_TRANSACTION_ALTER_STATEMENTS:
+            try:
+                cursor.execute(stmt)
+            except Exception:
+                pass
+
+
+def _mask_secret(value):
+    """Return last-4 chars masked string, or None if no value."""
+    if not value:
+        return None
+    visible = value[-4:] if len(value) >= 4 else value
+    return f"{'*' * (len(value) - len(visible))}{visible}"

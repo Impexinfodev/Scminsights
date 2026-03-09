@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -81,27 +81,38 @@ export default function AdminDashboardPage() {
     }
   }, [sessionChecked, isLoggedIn, isAdmin, router]);
 
-  useEffect(() => {
+  const fetchDashboard = useCallback(async () => {
     if (!isAdmin || !sessionToken || !backendUrl) return;
     const headers = { "Session-Token": sessionToken, "X-Client": "scm-insights" };
     setLoading(true);
     setError(null);
+    try {
+      const [ovRes, licRes, usrRes, txRes] = await Promise.all([
+        axios.get(`${backendUrl}/api/admin/overview`, { headers }),
+        axios.get(`${backendUrl}/api/admin/licenses/stats`, { headers }).catch(() => ({ data: { by_license: [] } })),
+        axios.get(`${backendUrl}/api/admin/users?page=1&page_size=5&sort_order=desc`, { headers }).catch(() => ({ data: { users: [] } })),
+        axios.get(`${backendUrl}/api/admin/transactions?page=1&page_size=5`, { headers }).catch(() => ({ data: { transactions: [] } })),
+      ]);
+      setOverview(ovRes.data);
+      setLicenseStats(licRes.data?.by_license ?? []);
+      setRecentUsers(usrRes.data?.users ?? []);
+      setRecentTxs(txRes.data?.transactions ?? []);
+    } catch (err: any) {
+      const status = err.response?.status;
+      if (status === 401) {
+        // Session expired — redirect to login
+        router.replace("/login");
+        return;
+      }
+      setError(err.response?.data?.error || "Failed to load dashboard data");
+    } finally {
+      setLoading(false);
+    }
+  }, [isAdmin, sessionToken, backendUrl, router]);
 
-    Promise.all([
-      axios.get(`${backendUrl}/api/admin/overview`, { headers, withCredentials: true }),
-      axios.get(`${backendUrl}/api/admin/licenses/stats`, { headers }).catch(() => ({ data: { by_license: [] } })),
-      axios.get(`${backendUrl}/api/admin/users?page=1&page_size=5&sort_order=desc`, { headers }).catch(() => ({ data: { users: [] } })),
-      axios.get(`${backendUrl}/api/admin/transactions?page=1&page_size=5`, { headers }).catch(() => ({ data: { transactions: [] } })),
-    ])
-      .then(([ovRes, licRes, usrRes, txRes]) => {
-        setOverview(ovRes.data);
-        setLicenseStats(licRes.data?.by_license ?? []);
-        setRecentUsers(usrRes.data?.users ?? []);
-        setRecentTxs(txRes.data?.transactions ?? []);
-      })
-      .catch((err) => setError(err.response?.data?.error || "Failed to load overview"))
-      .finally(() => setLoading(false));
-  }, [isAdmin, sessionToken, backendUrl]);
+  useEffect(() => {
+    fetchDashboard();
+  }, [fetchDashboard]);
 
   const chartData = (() => {
     const months = last6Months();
@@ -188,7 +199,15 @@ export default function AdminDashboardPage() {
       </div>
 
       {error && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>
+        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-center justify-between gap-3 flex-wrap">
+          <span>{error}</span>
+          <button
+            onClick={fetchDashboard}
+            className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
       )}
 
       {loading ? (
@@ -237,8 +256,8 @@ export default function AdminDashboardPage() {
             >
               <h2 className="text-lg font-semibold text-gray-900 mb-1">Revenue (last 6 months)</h2>
               <p className="text-sm text-gray-500 mb-6">Captured payments in ₹ (INR)</p>
-              <div className="h-[240px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
+              <div style={{ width: "100%", height: 240, minWidth: 0 }}>
+                <ResponsiveContainer width="100%" height={240}>
                   <BarChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#6b7280" }} axisLine={{ stroke: "#e5e7eb" }} />
@@ -267,13 +286,13 @@ export default function AdminDashboardPage() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-sm"
+              className="rounded-2xl border border-gray-200/80 bg-white px-4 py-2 shadow-sm"
             >
               <h2 className="text-lg font-semibold text-gray-900 mb-1">Plan Distribution</h2>
               <p className="text-sm text-gray-500 mb-4">Users by license type</p>
               {donutData.length > 0 ? (
-                <div className="h-[220px]">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div style={{ width: "100%", height: 280, minWidth: 0 }}>
+                  <ResponsiveContainer width="100%" height={280}>
                     <PieChart>
                       <Pie data={donutData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value">
                         {donutData.map((_, i) => (

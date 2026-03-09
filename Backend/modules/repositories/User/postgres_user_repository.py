@@ -13,6 +13,7 @@ from modules.db.postgres_models import (
     CREATE_USER_TOKEN_TABLE,
     CREATE_ACTIVATION_TABLE,
     CREATE_PASSWORD_RESET_TABLE,
+    USER_PROFILE_DPDP_ALTER_STATEMENTS,
 )
 
 TRIAL = "TRIAL"
@@ -360,3 +361,117 @@ class PostgresUserRepository(UserRepository):
             tokens_remaining = tokens["tokens"]
             end_time = tokens["endTime"]
         return {"userId": user_id, "tokens": tokens_remaining, "endTime": end_time}
+
+    # ── DPDP Act 2023 compliance ────────────────────────────────────────────
+
+    @with_connection(commit=True)
+    def record_consent(self, cursor, user_id: str, consent_version: str = "v1.0") -> None:
+        """Store the timestamp at which the user gave DPDP consent."""
+        cursor.execute(
+            """UPDATE UserProfile
+               SET ConsentGivenAt = NOW() AT TIME ZONE 'UTC',
+                   ConsentVersion = %s
+               WHERE UserId = %s""",
+            (consent_version, user_id),
+        )
+
+    @with_connection(commit=False)
+    def get_user_payment_history(self, cursor, user_id: str) -> list:
+        """Return payment records for a user — used in data export."""
+        cursor.execute(
+            """SELECT RazorpayOrderId, LicenseType, AmountPaise, Currency,
+                      Status, CreatedAt, UpdatedAt, InvoiceNumber
+               FROM PaymentTransaction
+               WHERE UserId = %s
+               ORDER BY CreatedAt DESC""",
+            (user_id,),
+        )
+        rows = cursor.fetchall()
+        result = []
+        for r in rows:
+            result.append({
+                "order_id": r[0],
+                "plan": r[1],
+                "amount_inr": round((r[2] or 0) / 100, 2),
+                "currency": r[3],
+                "status": r[4],
+                "date": r[5].isoformat() if r[5] else None,
+                "updated": r[6].isoformat() if r[6] else None,
+                "invoice_number": r[7],
+            })
+        return result
+
+    @with_connection(commit=True)
+    def apply_user_profile_alters(self, cursor) -> None:
+        """Apply idempotent ALTER TABLE statements for UserProfile (DPDP columns etc.)."""
+        for stmt in USER_PROFILE_DPDP_ALTER_STATEMENTS:
+            try:
+                cursor.execute(stmt)
+            except Exception:
+                pass
+
+    @with_connection(commit=True)
+    def schedule_account_deletion(self, cursor, user_id: str) -> str:
+        """
+        DPDP §12 — Schedule deletion 30 days from now.
+        Returns the scheduled deletion ISO timestamp.
+        """
+        cursor.execute(
+            """UPDATE UserProfile
+               SET DeletionScheduledAt = NOW() AT TIME ZONE 'UTC' + INTERVAL '30 days'
+               WHERE UserId = %s
+               RETURNING DeletionScheduledAt""",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+        ts = row[0] if row else None
+        return ts.isoformat() if ts and hasattr(ts, "isoformat") else str(ts)
+
+    @with_connection(commit=True)
+    def cancel_account_deletion(self, cursor, user_id: str) -> None:
+        """Cancel a previously scheduled deletion."""
+        cursor.execute(
+            "UPDATE UserProfile SET DeletionScheduledAt = NULL WHERE UserId = %s",
+            (user_id,),
+        )
+
+    @with_connection(commit=False)
+    def get_deletion_scheduled_at(self, cursor, user_id: str):
+        """Return DeletionScheduledAt timestamp for a user, or None."""
+        cursor.execute(
+            "SELECT DeletionScheduledAt FROM UserProfile WHERE UserId = %s",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+        if not row or row[0] is None:
+            return None
+        ts = row[0]
+        return ts.isoformat() if hasattr(ts, "isoformat") else str(ts)
+
+    @with_connection(commit=True)
+    def delete_user_account(self, cursor, user_id: str) -> None:
+        """
+        DPDP §12 — Right to Erasure.
+        Steps:
+          1. Anonymize PaymentTransaction (keep for 7 years, GST Act compliance)
+          2. Delete Session, UserToken, AccountActivation, PasswordReset
+          3. Delete UserProfile (cascades Session, UserToken via FK)
+        """
+        import hashlib
+        anon_hash = hashlib.sha256(user_id.encode()).hexdigest()[:16]
+        anon_user = f"DELETED_{anon_hash}"
+        anon_email = f"deleted_{anon_hash}@anon.invalid"
+        # Anonymize payment records — must retain for tax compliance
+        cursor.execute(
+            """UPDATE PaymentTransaction
+               SET UserId = %s, EmailId = %s
+               WHERE UserId = %s""",
+            (anon_user, anon_email, user_id),
+        )
+        # Delete tokens and activation records
+        cursor.execute("DELETE FROM AccountActivation WHERE UserId = %s", (user_id,))
+        cursor.execute("DELETE FROM PasswordReset WHERE UserId = %s", (user_id,))
+        cursor.execute("DELETE FROM UserToken WHERE UserId = %s", (user_id,))
+        cursor.execute("DELETE FROM Session WHERE UserId = %s", (user_id,))
+        # Delete the user — FK cascade handles remaining child rows
+        cursor.execute("DELETE FROM UserProfile WHERE UserId = %s", (user_id,))
