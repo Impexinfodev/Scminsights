@@ -63,7 +63,7 @@ export default function AdminContactsPage() {
         `${backendUrl}/api/admin/contacts?page=${pagination.page}&page_size=${pagination.page_size}&sort_order=desc`,
         {
           headers: {
-            "Session-Token": sessionToken,
+            "Session-Token": sessionToken ?? "",
             "X-Client": "scm-insights",
           },
           withCredentials: true,
@@ -127,7 +127,7 @@ export default function AdminContactsPage() {
         { subject: replySubject.trim() || undefined, body: replyBody.trim() },
         {
           headers: {
-            "Session-Token": sessionToken,
+            "Session-Token": sessionToken ?? "",
             "X-Client": "scm-insights",
             "Content-Type": "application/json",
           },
@@ -148,7 +148,7 @@ export default function AdminContactsPage() {
     setActionLoading(contactId);
     try {
       await axios.delete(`${backendUrl}/api/admin/contacts/${contactId}`, {
-        headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" },
+        headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" },
         withCredentials: true,
       });
       setDeleteConfirm(null);

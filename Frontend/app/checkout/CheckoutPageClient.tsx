@@ -244,7 +244,7 @@ export default function CheckoutPageClient() {
     if (!sessionToken || !backendUrl) return;
     axios
       .get(`${backendUrl}/api/payment/active-gateways`, {
-        headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" },
+        headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" },
       })
       .then((res) => setActiveGateways(res.data))
       .catch(() => setActiveGateways({ razorpay: true, checkout: false }))
@@ -283,7 +283,7 @@ export default function CheckoutPageClient() {
       .post(
         `${backendUrl}/api/payment/create-order`,
         { license_type: licenseType },
-        { headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" } }
+        { headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" } }
       )
       .then((res) => { setOrderPayload(res.data); setStep("ready"); })
       .catch((err) => { setError(err.response?.data?.error || "Failed to create order"); setStep("error"); });
@@ -320,7 +320,7 @@ export default function CheckoutPageClient() {
               razorpay_signature: response.razorpay_signature,
               license_type: licenseType,
             },
-            { headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" } }
+            { headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" } }
           )
           .then(() => {
             setStep("done");
@@ -352,7 +352,7 @@ export default function CheckoutPageClient() {
         try {
           const res = await axios.get(
             `${backendUrl}/api/payment/checkout/status/${txn}`,
-            { headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" } }
+            { headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" } }
           );
           const status: string = (res.data.status || "").replace(/ /g, "").toLowerCase();
           if (["completed", "paymentreceived", "paid"].includes(status)) {
@@ -379,7 +379,7 @@ export default function CheckoutPageClient() {
           // Popup closed without postMessage — do one final API check
           axios
             .get(`${backendUrl}/api/payment/checkout/status/${txn}`, {
-              headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" },
+              headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" },
             })
             .then((res) => {
               const status: string = (res.data.status || "").replace(/ /g, "").toLowerCase();
@@ -419,7 +419,7 @@ export default function CheckoutPageClient() {
       .post(
         `${backendUrl}/api/payment/checkout/create-session`,
         { license_type: licenseType, frontend_url: window.location.origin },
-        { headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" } }
+        { headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" } }
       )
       .then((res) => {
         const { redirect_url, transaction_id, amount_usd } = res.data;

@@ -131,7 +131,7 @@ function AdminAssignLicenseContent() {
       axios
         .get(`${backendUrl}/api/admin/users?${params}`, {
           headers: {
-            "Session-Token": sessionToken,
+            "Session-Token": sessionToken ?? "",
             "X-Client": "scm-insights",
           },
           withCredentials: true,
@@ -165,7 +165,7 @@ function AdminAssignLicenseContent() {
     if (!sessionToken || !backendUrl) return;
     try {
       const res = await axios.get(`${backendUrl}/api/admin/licenses`, {
-        headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" },
+        headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" },
         withCredentials: true,
       });
       setLicenses(Array.isArray(res.data) ? res.data : []);
@@ -178,7 +178,7 @@ function AdminAssignLicenseContent() {
     if (!sessionToken || !backendUrl) return;
     try {
       const res = await axios.get(`${backendUrl}/api/admin/licenses/stats`, {
-        headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" },
+        headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" },
         withCredentials: true,
       });
       setLicenseStats({
@@ -237,7 +237,7 @@ function AdminAssignLicenseContent() {
         { UserId: userId, EmailId: emailId, LicenseType: licenseType },
         {
           headers: {
-            "Session-Token": sessionToken,
+            "Session-Token": sessionToken ?? "",
             "X-Client": "scm-insights",
           },
           withCredentials: true,

@@ -22,7 +22,7 @@ export function getSecureHeaders(sessionToken: string): Record<string, string> {
   const nonce = Math.random().toString(36).substring(2, 15);
   
   return {
-    "Session-Token": sessionToken,
+    "Session-Token": sessionToken ?? "",
     "X-Request-Timestamp": timestamp.toString(),
     "X-Request-Nonce": nonce,
     "X-Client-Version": "1.0.0",

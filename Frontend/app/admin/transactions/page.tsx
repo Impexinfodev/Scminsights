@@ -293,7 +293,7 @@ export default function AdminTransactionsPage() {
       axios
         .get(`${backendUrl}/api/admin/transactions?${params.toString()}`, {
           headers: {
-            "Session-Token": sessionToken,
+            "Session-Token": sessionToken ?? "",
             "X-Client": "scm-insights",
           },
         })
@@ -342,7 +342,7 @@ export default function AdminTransactionsPage() {
         `${backendUrl}/api/admin/transactions/export?${params.toString()}`,
         {
           headers: {
-            "Session-Token": sessionToken,
+            "Session-Token": sessionToken ?? "",
             "X-Client": "scm-insights",
           },
         },

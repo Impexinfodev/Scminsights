@@ -84,7 +84,7 @@ export default function AdminUsersPage() {
       axios
         .get(`${backendUrl}/api/admin/users?${params}`, {
           headers: {
-            "Session-Token": sessionToken,
+            "Session-Token": sessionToken ?? "",
             "X-Client": "scm-insights",
           },
           withCredentials: true,
@@ -120,7 +120,7 @@ export default function AdminUsersPage() {
     if (!sessionToken || !backendUrl) return;
     axios
       .get(`${backendUrl}/api/admin/overview`, {
-        headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" },
+        headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" },
         withCredentials: true,
       })
       .then((res) => {
@@ -195,7 +195,7 @@ export default function AdminUsersPage() {
         `${backendUrl}/api/admin/users/export?${params}`,
         {
           headers: {
-            "Session-Token": sessionToken,
+            "Session-Token": sessionToken ?? "",
             "X-Client": "scm-insights",
           },
         },
@@ -225,7 +225,7 @@ export default function AdminUsersPage() {
         { EmailId: emailId, ActivationStatus: !current },
         {
           headers: {
-            "Session-Token": sessionToken,
+            "Session-Token": sessionToken ?? "",
             "X-Client": "scm-insights",
             "Content-Type": "application/json",
           },
@@ -256,7 +256,7 @@ export default function AdminUsersPage() {
         { EmailId: emailId, Role: newRole },
         {
           headers: {
-            "Session-Token": sessionToken,
+            "Session-Token": sessionToken ?? "",
             "X-Client": "scm-insights",
             "Content-Type": "application/json",
           },
@@ -283,7 +283,7 @@ export default function AdminUsersPage() {
         `${backendUrl}/api/admin/user?EmailId=${encodeURIComponent(emailId)}`,
         {
           headers: {
-            "Session-Token": sessionToken,
+            "Session-Token": sessionToken ?? "",
             "X-Client": "scm-insights",
           },
           withCredentials: true,

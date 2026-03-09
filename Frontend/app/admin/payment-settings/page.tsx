@@ -83,7 +83,7 @@ function GatewayCard({
   title: string;
   description: string;
   currency: string;
-  sessionToken: string;
+  sessionToken: string | null;
   backendUrl: string;
   onSaved: (msg: string, type: "success" | "error") => void;
 }) {
@@ -109,7 +109,7 @@ function GatewayCard({
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "Session-Token": sessionToken,
+          "Session-Token": sessionToken ?? "",
           "X-Client": "scm-insights",
         },
         body: JSON.stringify({
@@ -335,7 +335,7 @@ export default function PaymentSettingsPage() {
     setFetchError(null);
     try {
       const res = await fetch(`${backendUrl}/api/admin/payment-gateway-config`, {
-        headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" },
+        headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: GatewayConfig[] = await res.json();
@@ -369,7 +369,7 @@ export default function PaymentSettingsPage() {
     try {
       const res = await fetch(`${backendUrl}/api/admin/transactions/clear-test`, {
         method: "DELETE",
-        headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" },
+        headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" },
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed");

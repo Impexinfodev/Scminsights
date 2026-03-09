@@ -271,7 +271,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!sessionToken || !backendUrl) return;
     fetch(`${backendUrl}/api/user/deletion-status`, {
-      headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" },
+      headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" },
     })
       .then((r) => r.json())
       .then((data) => setDeletionScheduledAt(data.deletion_scheduled_at ?? null))
@@ -284,7 +284,7 @@ export default function ProfilePage() {
     setPaymentsLoading(true);
     setPaymentsError("");
     fetch(`${backendUrl}/api/user/payment-history`, {
-      headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" },
+      headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" },
     })
       .then((r) => r.json())
       .then((data) => setPayments(data.payments ?? []))
@@ -326,7 +326,7 @@ export default function ProfilePage() {
       await axios.put(
         `${backendUrl}/api/profile`,
         { name: editForm.name.trim(), companyName: editForm.companyName.trim(), phoneNumber: editForm.phoneNumber.trim() },
-        { headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" } },
+        { headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" } },
       );
       setSaveSuccess(true); setIsEditing(false);
       setTimeout(() => { setSaveSuccess(false); router.refresh(); }, 1500);
@@ -342,7 +342,7 @@ export default function ProfilePage() {
     setIsExporting(true);
     try {
       const res = await fetch(`${backendUrl}/api/user/data-export?format=${format}`, {
-        headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" },
+        headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" },
       });
       if (!res.ok) throw new Error("Export failed");
       const blob = await res.blob();
@@ -363,7 +363,7 @@ export default function ProfilePage() {
       const res = await axios.post(
         `${backendUrl}/api/user/delete-account`,
         { password: deletePassword },
-        { headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" } },
+        { headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" } },
       );
       setDeletionScheduledAt(res.data?.deletion_scheduled_at ?? null);
       setShowDeleteModal(false);
@@ -379,7 +379,7 @@ export default function ProfilePage() {
       await axios.post(
         `${backendUrl}/api/user/cancel-deletion`,
         {},
-        { headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" } },
+        { headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" } },
       );
       setDeletionScheduledAt(null);
     } catch (err: any) {

@@ -109,7 +109,7 @@ export default function AdminPlansPage() {
     setError(null);
     axios
       .get(`${backendUrl}/api/admin/licenses`, {
-        headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" },
+        headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" },
         withCredentials: true,
       })
       .then((res) => setPlans(Array.isArray(res.data) ? res.data : []))
@@ -194,7 +194,7 @@ export default function AdminPlansPage() {
       url,
       data: payload,
       headers: {
-        "Session-Token": sessionToken,
+        "Session-Token": sessionToken ?? "",
         "X-Client": "scm-insights",
         "Content-Type": "application/json",
       },
@@ -219,7 +219,7 @@ export default function AdminPlansPage() {
         `${backendUrl}/api/admin/license?LicenseType=${encodeURIComponent(licenseType)}`,
         {
           headers: {
-            "Session-Token": sessionToken,
+            "Session-Token": sessionToken ?? "",
             "X-Client": "scm-insights",
           },
           withCredentials: true,

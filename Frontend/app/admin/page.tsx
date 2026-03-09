@@ -83,7 +83,7 @@ export default function AdminDashboardPage() {
 
   const fetchDashboard = useCallback(async () => {
     if (!isAdmin || !sessionToken || !backendUrl) return;
-    const headers = { "Session-Token": sessionToken, "X-Client": "scm-insights" };
+    const headers = { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" };
     setLoading(true);
     setError(null);
     try {
@@ -154,7 +154,7 @@ export default function AdminDashboardPage() {
   const handleExport = (endpoint: string, filename: string) => {
     if (!sessionToken) return;
     fetch(`${backendUrl}${endpoint}`, {
-      headers: { "Session-Token": sessionToken, "X-Client": "scm-insights" },
+      headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" },
     })
       .then((r) => r.blob())
       .then((blob) => {
