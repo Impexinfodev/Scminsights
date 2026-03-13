@@ -95,7 +95,7 @@ export default function AdminPlansPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
-  const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+  const [_editingPlan, setEditingPlan] = useState<Plan | null>(null);
   const [form, setForm] = useState<Plan>(emptyPlan);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -127,6 +127,7 @@ export default function AdminPlansPage() {
 
   useEffect(() => {
     if (!isAdmin || !sessionToken || !backendUrl) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchPlans();
   }, [isAdmin, sessionToken, backendUrl, fetchPlans]);
 
@@ -330,9 +331,10 @@ export default function AdminPlansPage() {
                       {plan.LicenseType}
                     </p>
                   </div>
+                  {/* i18n-02 FIX: Explicit locales — INR uses en-IN (lakh grouping), USD uses en-US */}
                   <span className="text-lg font-bold text-blue-600 shrink-0 whitespace-nowrap">
-                    ₹{Number(plan.PriceINR ?? plan.Price ?? 0).toLocaleString()} / $
-                    {Number(plan.PriceUSD ?? plan.Price ?? 0).toLocaleString()}
+                    ₹{Number(plan.PriceINR ?? plan.Price ?? 0).toLocaleString("en-IN")} / $
+                    {Number(plan.PriceUSD ?? plan.Price ?? 0).toLocaleString("en-US")}
                   </span>
                 </div>
                 {plan.ShortDescription && (

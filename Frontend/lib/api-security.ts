@@ -113,10 +113,13 @@ export function isLikelyAutomated(): boolean {
   if (typeof window === "undefined") return true;
   
   // Check for common automation indicators
-  const hasWebdriver = !!(navigator as any).webdriver;
-  const hasPhantom = !!(window as any).callPhantom || !!(window as any)._phantom;
-  const hasSelenium = !!(document as any).__selenium_unwrapped;
-  const hasCypherDom = !!(window as any).cdc_adoQpoasnfa76pfcZLmcfl_Array;
+  const nav = navigator as Navigator & { webdriver?: boolean };
+  const win = window as unknown as Record<string, unknown>;
+  const doc = document as Document & Record<string, unknown>;
+  const hasWebdriver = !!nav.webdriver;
+  const hasPhantom = !!win.callPhantom || !!win._phantom;
+  const hasSelenium = !!doc.__selenium_unwrapped;
+  const hasCypherDom = !!win.cdc_adoQpoasnfa76pfcZLmcfl_Array;
   
   // Check for missing browser features that real browsers have
   const missingPlugins = navigator.plugins?.length === 0;
@@ -148,7 +151,7 @@ export function getBrowserFingerprint(): string {
 }
 
 // Debounce function for search inputs
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {
@@ -178,11 +181,11 @@ export function maskEmail(email: string): string {
 }
 
 // Session validation
-export function isSessionValid(session: any): boolean {
+export function isSessionValid(session: Record<string, unknown> | null | undefined): boolean {
   if (!session) return false;
   if (!session.session_token) return false;
   if (session.session_expiration_time) {
-    const expirationDate = new Date(session.session_expiration_time);
+    const expirationDate = new Date(session.session_expiration_time as string);
     if (expirationDate < new Date()) return false;
   }
   return true;

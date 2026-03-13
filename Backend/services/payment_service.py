@@ -5,11 +5,16 @@
 
 import hashlib
 import hmac
+import time
 import uuid
 import logging
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
+
+# REL-02: Retry configuration for transient Razorpay API errors.
+_RAZORPAY_MAX_RETRIES = 3
+_RAZORPAY_RETRY_BASE_DELAY = 0.5  # seconds; doubles on each attempt (0.5s, 1s, 2s)
 
 
 class PaymentServiceError(Exception):
@@ -85,16 +90,26 @@ class PaymentService:
                 "website": "scminsights.ai",
             },
         }
-        try:
-            order = client.order.create(data=order_data)
-        except Exception as e:
-            raise PaymentServiceError(f"Razorpay order creation failed: {e}")
-        return {
-            "order_id": order["id"],
-            "amount":   order["amount"],
-            "currency": order["currency"],
-            "key_id":   key_id,
-        }
+        # REL-02 FIX: Retry up to _RAZORPAY_MAX_RETRIES times with exponential
+        # backoff to recover from transient Razorpay 5xx / network errors.
+        last_error: Exception = Exception("Unknown error")
+        for attempt in range(1, _RAZORPAY_MAX_RETRIES + 1):
+            try:
+                order = client.order.create(data=order_data)
+                return {
+                    "order_id": order["id"],
+                    "amount":   order["amount"],
+                    "currency": order["currency"],
+                    "key_id":   key_id,
+                }
+            except Exception as e:
+                last_error = e
+                if attempt < _RAZORPAY_MAX_RETRIES:
+                    delay = _RAZORPAY_RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                    logger.warning("Razorpay order creation attempt %d/%d failed: %s — retrying in %.1fs",
+                                   attempt, _RAZORPAY_MAX_RETRIES, type(e).__name__, delay)
+                    time.sleep(delay)
+        raise PaymentServiceError(f"Razorpay order creation failed after {_RAZORPAY_MAX_RETRIES} attempts: {last_error}")
 
     @staticmethod
     def verify_payment(

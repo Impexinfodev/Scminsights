@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { HugeiconsIcon, type HugeiconsIconProps } from "@hugeicons/react";
 import {
   Database01Icon,
   UserAdd01Icon,
@@ -52,7 +52,7 @@ const PLAN_ORDER: readonly string[] = ["TRIAL", "DIRECTORY", "TRADE", "BUNDLE"] 
 const API_REQUEST_TIMEOUT = 10000;
 
 function getPlanRank(licenseType: string): number {
-  return PLAN_ORDER.indexOf(licenseType as any);
+  return PLAN_ORDER.indexOf(licenseType);
 }
 
 function isPlanHigherThan(myType: string | null, cardType: string): boolean {
@@ -147,7 +147,7 @@ const DEFAULT_THEME: PlanTheme = { ...PLAN_THEMES["TRIAL"], icon: DiamondIcon };
    AccessRow
    ========================================= */
 
-function AccessRow({ icon, label, access }: { icon: any; label: string; access: AccessShape }) {
+function AccessRow({ icon, label, access }: { icon: HugeiconsIconProps["icon"]; label: string; access: AccessShape }) {
   const { type, text } = getAccessSummary(access);
   return (
     <div className="flex items-center gap-2 py-1.5">
@@ -210,6 +210,7 @@ export default function PlansPageClient() {
   const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL ?? "").trim();
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!backendUrl) { setLoading(false); return; }
     const ctrl = new AbortController();
     axios

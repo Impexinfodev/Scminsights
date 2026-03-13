@@ -82,12 +82,15 @@ function Toast({
       animate={{ opacity: 1, y: 0, x: 0 }}
       exit={{ opacity: 0, y: -20, x: 20 }}
       className={`fixed top-20 right-4 z-50 px-4 py-3 rounded-xl border shadow-lg max-w-sm ${styles[type]}`}
+      role="alert"
+      aria-live={type === "error" ? "assertive" : "polite"}
+      aria-atomic="true"
     >
       <div className="flex items-center gap-3">
-        <HugeiconsIcon icon={icons[type]} size={18} />
+        <HugeiconsIcon icon={icons[type]} size={18} aria-hidden="true" />
         <span className="text-sm font-medium flex-1">{message}</span>
-        <button onClick={onClose} className="opacity-60 hover:opacity-100">
-          <HugeiconsIcon icon={Cancel01Icon} size={14} />
+        <button onClick={onClose} className="opacity-60 hover:opacity-100" aria-label="Dismiss notification">
+          <HugeiconsIcon icon={Cancel01Icon} size={14} aria-hidden="true" />
         </button>
       </div>
     </motion.div>
@@ -95,7 +98,7 @@ function Toast({
 }
 
 export default function SupplierPageClient() {
-  const { sessionToken, isLoading: userLoading, isLoggedIn } = useUser({ redirectTo: "/login" });
+  const { sessionToken, isLoading: userLoading } = useUser({ redirectTo: "/login" });
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
 
@@ -149,8 +152,8 @@ export default function SupplierPageClient() {
   const [pageSize, setPageSize] = useState(10);
   const [totalResults, setTotalResults] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [hasNext, setHasNext] = useState(false);
-  const [hasPrev, setHasPrev] = useState(false);
+  const [_hasNext, setHasNext] = useState(false);
+  const [_hasPrev, setHasPrev] = useState(false);
 
   // Toast state
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "info" | "warning" } | null>(null);
@@ -244,13 +247,14 @@ export default function SupplierPageClient() {
 
         if (Array.isArray(data)) {
           parsedCodes = data
-            .map((item: any) => {
+            .map((item: unknown) => {
               if (typeof item === "string" || typeof item === "number") {
                 return { code: String(item), description: "" };
               }
               if (!item) return null;
-              const code = item.code || item.hsn_code || item.hscode || item.hs_code || item.HSCode || item.hsn || item.id;
-              const desc = item.description || item.desc || item.Description || item.name || "";
+              const obj = item as Record<string, unknown>;
+              const code = obj.code || obj.hsn_code || obj.hscode || obj.hs_code || obj.HSCode || obj.hsn || obj.id;
+              const desc = obj.description || obj.desc || obj.Description || obj.name || "";
               return code ? { code: String(code), description: String(desc) } : null;
             })
             .filter((item): item is HsCodeItem => item !== null);
@@ -271,7 +275,7 @@ export default function SupplierPageClient() {
   }, [sessionToken, userLoading, BACKEND_URL]);
 
   // Handle session errors
-  const handleSessionError = (error: unknown) => {
+  const _handleSessionError = (error: unknown) => {
     const axiosError = error as { response?: { data?: { code?: string; error?: string }; status?: number } };
     if (
       axiosError.response?.status === 401 ||
@@ -309,7 +313,7 @@ export default function SupplierPageClient() {
         }
         if (!res.ok) throw new Error(json?.error || "Failed to load years");
         setAvailableYears(Array.isArray(json?.data) ? json.data : []);
-      } catch (e) {
+      } catch {
         if (cancelledRef.current) return;
         setAvailableYears([]);
         setToast({ message: "Could not load years. Check HS code and try again.", type: "warning" });
@@ -782,7 +786,7 @@ export default function SupplierPageClient() {
           {/* Results Header */}
           <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap gap-4 justify-between items-center bg-gray-50">
             <span className="text-gray-600 text-sm">
-              <span className="font-semibold text-gray-900">{totalResults.toLocaleString()}</span> suppliers found
+              <span className="font-semibold text-gray-900">{totalResults.toLocaleString("en-IN")}</span> suppliers found
             </span>
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500">Show:</span>
@@ -872,7 +876,7 @@ export default function SupplierPageClient() {
           {!isLoading && suppliers.length > 0 && (
             <div className="px-5 py-4 border-t border-gray-100 flex flex-wrap gap-4 justify-between items-center bg-gray-50">
               <span className="text-sm text-gray-600">
-                Showing {((pageIndex - 1) * pageSize) + 1} - {Math.min(pageIndex * pageSize, totalResults)} of {totalResults.toLocaleString()} suppliers
+                Showing {((pageIndex - 1) * pageSize) + 1} - {Math.min(pageIndex * pageSize, totalResults)} of {totalResults.toLocaleString("en-IN")} suppliers
               </span>
               <div className="flex items-center gap-2">
                 <button

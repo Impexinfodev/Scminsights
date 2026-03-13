@@ -51,6 +51,10 @@ def get_conn():
 
 
 def run(dry_run: bool = False) -> None:
+    # REL-06 FIX: Track per-operation counts and emit a structured CLEANUP_SUMMARY
+    # line at the end so log-monitoring tools (e.g. grep/CloudWatch) can detect
+    # silent failures or unexpectedly large purges without reading the full log.
+    summary: dict = {}
     mode = "[DRY RUN] " if dry_run else ""
     logger.info("=== %sSCM Insights data cleanup started ===", mode)
     conn = get_conn()
@@ -61,6 +65,7 @@ def run(dry_run: bool = False) -> None:
                 "SELECT COUNT(*) FROM Session WHERE ExpirationTime < NOW() - INTERVAL '7 days'"
             )
             count = cur.fetchone()[0]
+            summary["sessions_deleted"] = count
             logger.info("%sExpired sessions to delete: %d", mode, count)
             if not dry_run:
                 cur.execute(
@@ -72,6 +77,7 @@ def run(dry_run: bool = False) -> None:
                 "SELECT COUNT(*) FROM AccountActivation WHERE ExpirationTime < NOW() - INTERVAL '1 day'"
             )
             count = cur.fetchone()[0]
+            summary["activation_tokens_deleted"] = count
             logger.info("%sExpired activation tokens to delete: %d", mode, count)
             if not dry_run:
                 cur.execute(
@@ -83,6 +89,7 @@ def run(dry_run: bool = False) -> None:
                 "SELECT COUNT(*) FROM PasswordReset WHERE ExpirationTime < NOW() - INTERVAL '1 day'"
             )
             count = cur.fetchone()[0]
+            summary["reset_tokens_deleted"] = count
             logger.info("%sExpired password reset tokens to delete: %d", mode, count)
             if not dry_run:
                 cur.execute(
@@ -97,6 +104,7 @@ def run(dry_run: bool = False) -> None:
                      AND Email != 'anon@deleted.invalid'"""
             )
             count = cur.fetchone()[0]
+            summary["contacts_anonymized"] = count
             logger.info("%sOld replied contacts to anonymize: %d", mode, count)
             if not dry_run:
                 cur.execute(
@@ -121,6 +129,7 @@ def run(dry_run: bool = False) -> None:
                      AND DeletionScheduledAt < NOW()"""
             )
             pending = [row[0] for row in cur.fetchall()]
+            summary["accounts_deleted"] = len(pending)
             logger.info("%sScheduled account deletions to execute: %d", mode, len(pending))
             if not dry_run and pending:
                 # Anonymize payment records (GST 7-year retention — keep financial data, strip PII)
@@ -146,11 +155,23 @@ def run(dry_run: bool = False) -> None:
             logger.info("[DRY RUN] No changes committed.")
     except Exception as e:
         conn.rollback()
-        logger.error("Cleanup failed: %s", e, exc_info=True)
+        # REL-06: Emit a structured CLEANUP_SUMMARY=FAILED line so log monitors can alert on it.
+        logger.error("CLEANUP_SUMMARY status=FAILED error=%s", type(e).__name__, exc_info=True)
         sys.exit(1)
     finally:
         conn.close()
 
+    # REL-06 FIX: Emit a single structured summary line — easy to grep/alert on.
+    logger.info(
+        "CLEANUP_SUMMARY status=OK dry_run=%s sessions=%d activations=%d resets=%d contacts=%d accounts=%d ts=%s",
+        dry_run,
+        summary.get("sessions_deleted", 0),
+        summary.get("activation_tokens_deleted", 0),
+        summary.get("reset_tokens_deleted", 0),
+        summary.get("contacts_anonymized", 0),
+        summary.get("accounts_deleted", 0),
+        datetime.now(timezone.utc).isoformat(),
+    )
     logger.info("=== Cleanup complete: %s ===", datetime.now(timezone.utc).isoformat())
 
 

@@ -256,7 +256,7 @@ export default function HsnPageClient() {
               ) : hasSearch ? (
                 <span className="text-gray-600">
                   <strong className="text-blue-600 font-semibold">
-                    {totalItems.toLocaleString()}
+                    {totalItems.toLocaleString("en-IN")}
                   </strong>{" "}
                   results found
                 </span>
@@ -370,7 +370,7 @@ export default function HsnPageClient() {
             <div className="border-t border-gray-200 flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-gray-50 text-sm text-gray-600">
               <span>
                 {totalItems > 0
-                  ? `Showing ${startIndex}–${endIndex} of ${totalItems.toLocaleString()}${hasSearch ? " (filtered)" : ""}`
+                  ? `Showing ${startIndex}–${endIndex} of ${totalItems.toLocaleString("en-IN")}${hasSearch ? " (filtered)" : ""}`
                   : "0 results"}
               </span>
               {totalPages > 1 && (

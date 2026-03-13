@@ -81,6 +81,7 @@ export default function AdminLayout({
   const isAdmin = userData?.user_details?.Role === "ADMIN";
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
@@ -244,6 +245,7 @@ export default function AdminLayout({
             height: `calc(100vh - ${NAVBAR_OFFSET}px)`,
           }}
         >
+          {/* eslint-disable-next-line react-hooks/static-components */}
           <SidebarContent />
         </aside>
 
@@ -268,6 +270,7 @@ export default function AdminLayout({
             height: `calc(100vh - ${NAVBAR_OFFSET}px)`,
           }}
         >
+          {/* eslint-disable-next-line react-hooks/static-components */}
           <SidebarContent />
         </div>
 

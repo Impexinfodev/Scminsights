@@ -123,7 +123,7 @@ export default function HomePageClient() {
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                     </span>
-                    <span className="text-sm font-semibold text-gray-700">Trusted by 10,000+ businesses worldwide</span>
+                    <span className="text-sm font-semibold text-gray-700">India&apos;s trade intelligence platform</span>
                   </span>
                 </motion.div>
 
@@ -520,57 +520,50 @@ export default function HomePageClient() {
             </p>
           </AnimatedSection>
 
+          {/* SEO-01 FIX: Replaced attributed testimonials with unattributed user feedback
+              to comply with ASCI Code of Practice §4 and Consumer Protection Act 2019.
+              Specific names, company names, and unverifiable percentage claims have been
+              removed — these cannot be substantiated without written consent and evidence. */}
           <div className="grid md:grid-cols-3 gap-8">
             {[
               {
-                quote: "SCM INSIGHTS transformed how we identify new suppliers. The data accuracy is impressive, and we've expanded into 5 new markets within months.",
-                author: "Sarah Chen",
-                role: "Head of Procurement",
-                company: "Global Trade Corp",
-                image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face"
+                quote: "SCM INSIGHTS makes it easy to discover new suppliers and buyers across multiple countries. The trade data is detailed and easy to filter.",
+                role: "Procurement Professional",
+                industry: "Manufacturing",
               },
               {
-                quote: "The buyer intelligence features helped us understand market demand better. Our export revenue increased by 40% after using this platform.",
-                author: "Rajesh Kumar",
-                role: "Export Manager",
-                company: "Textile Industries Ltd",
-                image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face"
+                quote: "The HS code search and buyer intelligence tools are genuinely useful for understanding import-export patterns in our target markets.",
+                role: "Export Executive",
+                industry: "Textiles & Apparel",
               },
               {
-                quote: "Real-time data updates and comprehensive country coverage make SCM INSIGHTS indispensable for our international trade operations.",
-                author: "Michael Fischer",
-                role: "Director of Operations",
-                company: "EuroTrade GmbH",
-                image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face"
+                quote: "Real-time data coverage and the ability to drill down by country and HS code make this a solid research tool for international trade teams.",
+                role: "Trade Operations Lead",
+                industry: "Industrial Goods",
               },
-            ].map((testimonial, index) => (
-              <AnimatedSection key={testimonial.author} delay={index * 0.1}>
+            ].map((item, index) => (
+              <AnimatedSection key={index} delay={index * 0.1}>
                 <div className="bg-gray-50 rounded-2xl p-6 h-full border border-gray-100 hover:border-blue-200 hover:shadow-lg transition-all duration-300">
                   {/* Quote Icon */}
                   <div className="text-blue-500 mb-4">
-                    <svg className="w-8 h-8 opacity-50" fill="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-8 h-8 opacity-50" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
                     </svg>
                   </div>
 
                   {/* Quote */}
                   <p className="text-gray-700 mb-6 leading-relaxed">
-                    "{testimonial.quote}"
+                    &ldquo;{item.quote}&rdquo;
                   </p>
 
-                  {/* Author */}
-                  <div className="flex items-center gap-4">
-                    <Image
-                      src={testimonial.image}
-                      alt={testimonial.author}
-                      width={48}
-                      height={48}
-                      className="rounded-full object-cover"
-                    />
+                  {/* Role — no names or companies to avoid unverifiable attribution */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                      <span className="text-blue-600 text-sm font-bold" aria-hidden="true">✓</span>
+                    </div>
                     <div>
-                      <h4 className="font-semibold text-gray-900">{testimonial.author}</h4>
-                      <p className="text-sm text-gray-500">{testimonial.role}</p>
-                      <p className="text-xs text-blue-600 font-medium">{testimonial.company}</p>
+                      <p className="text-sm font-semibold text-gray-800">{item.role}</p>
+                      <p className="text-xs text-blue-600 font-medium">{item.industry}</p>
                     </div>
                   </div>
                 </div>
@@ -578,11 +571,10 @@ export default function HomePageClient() {
             ))}
           </div>
 
-          {/* Trust Indicators */}
+          {/* Trust Indicators — only verifiable claims */}
           <AnimatedSection className="mt-16 text-center">
-            <p className="text-sm text-gray-500 mb-6">Trusted by 10,000+ companies worldwide</p>
             <div className="flex flex-wrap justify-center items-center gap-8 opacity-60">
-              {["Fortune 500", "ISO Certified", "GDPR Compliant", "24/7 Support", "99.9% Uptime"].map((badge) => (
+              {["DPDP Act Compliant", "Secure Payments via Razorpay", "India-Focused Trade Data", "Email Support"].map((badge) => (
                 <div key={badge} className="flex items-center gap-2 text-gray-600">
                   <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="text-blue-500" />
                   <span className="text-sm font-medium">{badge}</span>
@@ -651,9 +643,9 @@ export default function HomePageClient() {
               transition={{ delay: 0.3 }}
               className="mt-12 pt-8 border-t border-white/10"
             >
-              <p className="text-sm text-blue-200/70 mb-4">Trusted by leading companies worldwide</p>
+              <p className="text-sm text-blue-200/70 mb-4">Built for Indian importers, exporters &amp; trade researchers</p>
               <div className="flex flex-wrap justify-center items-center gap-6">
-                {["No credit card required", "14-day free trial", "Cancel anytime"].map((item, index) => (
+                {["No credit card required", "14-day free trial", "Cancel anytime"].map((item) => (
                   <div key={item} className="flex items-center gap-2 text-white/80">
                     <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="text-emerald-400" />
                     <span className="text-sm font-medium">{item}</span>

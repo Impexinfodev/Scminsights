@@ -62,15 +62,18 @@ function Toast({
       animate={{ opacity: 1, y: 0, x: 0 }}
       exit={{ opacity: 0, y: -20, x: 20 }}
       className={`fixed top-4 right-4 z-50 max-w-sm w-full p-4 rounded-xl border shadow-lg ${colors[status]}`}
+      role="alert"
+      aria-live={status === "error" ? "assertive" : "polite"}
+      aria-atomic="true"
     >
       <div className="flex gap-3">
-        <HugeiconsIcon icon={icons[status]} size={20} className={iconColors[status]} />
+        <HugeiconsIcon icon={icons[status]} size={20} className={iconColors[status]} aria-hidden="true" />
         <div className="flex-1">
           <p className="font-semibold text-sm">{title}</p>
           <p className="text-sm opacity-80 mt-0.5">{description}</p>
         </div>
-        <button onClick={onClose} className="opacity-60 hover:opacity-100">
-          <HugeiconsIcon icon={Cancel01Icon} size={16} />
+        <button onClick={onClose} className="opacity-60 hover:opacity-100" aria-label="Dismiss notification">
+          <HugeiconsIcon icon={Cancel01Icon} size={16} aria-hidden="true" />
         </button>
       </div>
     </motion.div>
@@ -142,7 +145,11 @@ function ResetPasswordContent() {
       showToast("Password reset", "You can now sign in with your new password.", "success");
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { error?: string; details?: string[] } } };
-      const msg = ax.response?.data?.error || "Something went wrong. Please try again.";
+      const details = ax.response?.data?.details;
+      // UX-02 FIX: Surface per-rule password validation errors when the backend returns them.
+      const msg = details && details.length > 0
+        ? details.join(" • ")
+        : (ax.response?.data?.error || "Something went wrong. Please try again.");
       showToast("Reset failed", msg, "error");
     } finally {
       setIsLoading(false);

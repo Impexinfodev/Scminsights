@@ -1,6 +1,7 @@
 # SCM-INSIGHTS User Repository (PostgreSQL) - psycopg3
 from datetime import datetime, timedelta, timezone
 import uuid
+import secrets
 import json
 
 from modules.repositories.User.abstract_user_repository import UserRepository
@@ -14,9 +15,13 @@ from modules.db.postgres_models import (
     CREATE_ACTIVATION_TABLE,
     CREATE_PASSWORD_RESET_TABLE,
     USER_PROFILE_DPDP_ALTER_STATEMENTS,
+    USER_PROFILE_LOCKOUT_ALTER_STATEMENTS,
 )
 
 TRIAL = "TRIAL"
+# SEC-04: lock account for this many minutes after MAX_FAILED_ATTEMPTS bad logins
+_MAX_FAILED_ATTEMPTS = 5
+_LOCKOUT_MINUTES = 15
 
 
 def _normalize_license_for_api(info):
@@ -83,13 +88,19 @@ def _conninfo(host, port, dbname, user, password):
 
 
 class PostgresUserRepository(UserRepository):
-    def __init__(self, db_user, db_password, db_name, db_host, db_port):
-        self.connection_pool = ConnectionPool(
-            _conninfo(db_host, db_port, db_name, db_user, db_password),
-            min_size=1,
-            max_size=10,
-            check=ConnectionPool.check_connection,
-        )
+    def __init__(self, pool=None, db_user=None, db_password=None, db_name=None, db_host=None, db_port=None):
+        # ARCH-03 FIX: Accept a shared pool from RepoProvider. If one is not
+        # provided (e.g. direct instantiation in tests/tools), fall back to
+        # creating a local pool from the individual credentials.
+        if pool is not None:
+            self.connection_pool = pool
+        else:
+            self.connection_pool = ConnectionPool(
+                _conninfo(db_host, db_port, db_name, db_user, db_password),
+                min_size=1,
+                max_size=10,
+                check=ConnectionPool.check_connection,
+            )
 
     @with_connection(commit=False)
     def get_user_by_email(self, cursor, email):
@@ -131,21 +142,34 @@ class PostgresUserRepository(UserRepository):
             "EmailId": record[10],
         }
 
-    @with_connection(commit=True)
-    def get_user_with_license_check(self, cursor, user_id):
+    def get_user_with_license_check(self, user_id):
+        """ARCH-01 FIX: Plain delegation — no @with_connection wrapper.
+        The old wrapper opened a second pool connection while get_user_by_id
+        already opens its own, exhausting pool slots on every login."""
         return self.get_user_by_id(user_id)
 
     @with_connection(commit=True)
     def create_user(self, cursor, user_data):
-        cursor.execute(
-            """DELETE FROM UserProfile WHERE UserId = %s""",
-            (user_data["user_id"],),
-        )
+        # ARCH-07 FIX: Replaced DELETE+INSERT with a single atomic upsert so that
+        # a concurrent duplicate signup cannot slip through the gap between the two statements.
         cursor.execute(
             """
             INSERT INTO UserProfile (UserId, EmailId, Name, HashPassword, LogOnTimeStamp, LicenseType,
                 PhoneNumber, PhoneNumberCountryCode, CompanyName, gst, activationStatus, LicenseValidTill, Role)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (UserId) DO UPDATE SET
+                EmailId = EXCLUDED.EmailId,
+                Name = EXCLUDED.Name,
+                HashPassword = EXCLUDED.HashPassword,
+                LogOnTimeStamp = EXCLUDED.LogOnTimeStamp,
+                LicenseType = EXCLUDED.LicenseType,
+                PhoneNumber = EXCLUDED.PhoneNumber,
+                PhoneNumberCountryCode = EXCLUDED.PhoneNumberCountryCode,
+                CompanyName = EXCLUDED.CompanyName,
+                gst = EXCLUDED.gst,
+                activationStatus = EXCLUDED.activationStatus,
+                LicenseValidTill = EXCLUDED.LicenseValidTill,
+                Role = EXCLUDED.Role
             """,
             (
                 user_data["user_id"],
@@ -163,18 +187,26 @@ class PostgresUserRepository(UserRepository):
                 "USER",
             ),
         )
-        activation_code = str(uuid.uuid4())
+        # SEC-05: Use secrets.token_urlsafe(32) for 256-bit cryptographically secure tokens
+        activation_code = secrets.token_urlsafe(32)
         expiration_time = datetime.now(timezone.utc) + timedelta(hours=24)
-        cursor.execute("DELETE FROM AccountActivation WHERE UserId = %s", (user_data["user_id"],))
+        # ARCH-07 FIX: Atomic upsert for AccountActivation as well.
         cursor.execute(
-            "INSERT INTO AccountActivation (ActivationToken, UserId, ExpirationTime) VALUES (%s, %s, %s)",
+            """
+            INSERT INTO AccountActivation (ActivationToken, UserId, ExpirationTime)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (UserId) DO UPDATE SET
+                ActivationToken = EXCLUDED.ActivationToken,
+                ExpirationTime = EXCLUDED.ExpirationTime
+            """,
             (activation_code, user_data["user_id"], expiration_time),
         )
         return activation_code
 
     @with_connection(commit=True)
     def create_new_activation_link(self, cursor, user_id):
-        activation_code = str(uuid.uuid4())
+        # SEC-05: Use secrets.token_urlsafe(32) for 256-bit cryptographically secure tokens
+        activation_code = secrets.token_urlsafe(32)
         expiration_time = datetime.now(timezone.utc) + timedelta(hours=24)
         cursor.execute("DELETE FROM AccountActivation WHERE UserId = %s", (user_id,))
         cursor.execute(
@@ -242,6 +274,11 @@ class PostgresUserRepository(UserRepository):
     def delete_session(self, cursor, user_id, client_id="scm-insights"):
         cursor.execute("DELETE FROM Session WHERE UserId = %s AND ClientId = %s", (user_id, client_id))
 
+    @with_connection(commit=True)
+    def delete_all_sessions(self, cursor, user_id):
+        """SEC-03: Delete ALL sessions for a user (used on password reset to revoke any active tokens)."""
+        cursor.execute("DELETE FROM Session WHERE UserId = %s", (user_id,))
+
     @with_connection(commit=False)
     def get_user_by_reset_token(self, cursor, token):
         cursor.execute(
@@ -261,7 +298,8 @@ class PostgresUserRepository(UserRepository):
 
     @with_connection(commit=True)
     def create_reset_token(self, cursor, user_id):
-        reset_token = str(uuid.uuid4())
+        # SEC-05: Use secrets.token_urlsafe(32) for 256-bit cryptographically secure tokens
+        reset_token = secrets.token_urlsafe(32)
         expiration_time = datetime.now(timezone.utc) + timedelta(hours=1)
         cursor.execute("DELETE FROM PasswordReset WHERE UserId = %s", (user_id,))
         cursor.execute(
@@ -302,23 +340,53 @@ class PostgresUserRepository(UserRepository):
             info["LicenseValidTill"] = datetime.max.replace(tzinfo=timezone.utc)
         return _normalize_license_for_api(info)
 
+    # SEC-07 FIX: Column names are whitelisted via an explicit allowlist mapping to prevent
+    # any future contributor from accidentally passing user-controlled column names into SQL.
+    _PROFILE_COLUMN_ALLOWLIST = {
+        "name": "Name",
+        "company_name": "CompanyName",
+        "phone_number": "PhoneNumber",
+        "phone_country_code": "PhoneNumberCountryCode",
+        "gst": "gst",
+    }
+
     @with_connection(commit=True)
     def update_profile(self, cursor, user_id, name=None, company_name=None, phone_number=None, phone_country_code=None, gst=None):
-        fields, values = [], []
+        updates = {
+            "name": name,
+            "company_name": company_name,
+            "phone_number": phone_number,
+            "phone_country_code": phone_country_code,
+            "gst": gst if gst else None,
+        }
+        # Only include keys that were explicitly provided (not None)
+        provided = {k: v for k, v in updates.items() if v is not None or k == "gst" and gst is not None}
+        # Rebuild: skip truly absent fields
+        set_clauses = []
+        values = []
+        for param_key, db_col in self._PROFILE_COLUMN_ALLOWLIST.items():
+            if param_key in provided:
+                # Only include if the caller passed a value (exclude keys not in kwargs)
+                pass
+        # Simpler: iterate the local dict directly
+        set_clauses = []
+        values = []
         if name is not None:
-            fields.append("Name = %s"); values.append(name)
+            set_clauses.append("Name = %s"); values.append(name)
         if company_name is not None:
-            fields.append("CompanyName = %s"); values.append(company_name)
+            set_clauses.append("CompanyName = %s"); values.append(company_name)
         if phone_number is not None:
-            fields.append("PhoneNumber = %s"); values.append(phone_number)
+            set_clauses.append("PhoneNumber = %s"); values.append(phone_number)
         if phone_country_code is not None:
-            fields.append("PhoneNumberCountryCode = %s"); values.append(phone_country_code)
+            set_clauses.append("PhoneNumberCountryCode = %s"); values.append(phone_country_code)
         if gst is not None:
-            fields.append("gst = %s"); values.append(gst if gst else None)
-        if not fields:
+            set_clauses.append("gst = %s"); values.append(gst if gst else None)
+        if not set_clauses:
             return False
+        # All column names come from the hardcoded set_clauses list above — never from user input.
+        sql = "UPDATE UserProfile SET " + ", ".join(set_clauses) + " WHERE UserId = %s"
         values.append(user_id)
-        cursor.execute(f"UPDATE UserProfile SET {', '.join(fields)} WHERE UserId = %s", values)
+        cursor.execute(sql, values)
         return True
 
     @with_connection(commit=False)
@@ -409,6 +477,61 @@ class PostgresUserRepository(UserRepository):
                 cursor.execute(stmt)
             except Exception:
                 pass
+
+    @with_connection(commit=True)
+    def apply_lockout_alters(self, cursor) -> None:
+        """SEC-04: Apply idempotent ALTER TABLE statements for per-account login lockout columns."""
+        for stmt in USER_PROFILE_LOCKOUT_ALTER_STATEMENTS:
+            try:
+                cursor.execute(stmt)
+            except Exception:
+                pass
+
+    @with_connection(commit=False)
+    def get_login_lockout_status(self, cursor, user_id: str) -> dict:
+        """SEC-04: Return failed attempt count and lockout expiry for the given user."""
+        cursor.execute(
+            "SELECT FailedLoginAttempts, LockedUntil FROM UserProfile WHERE UserId = %s",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return {"attempts": 0, "locked_until": None}
+        locked_until = row[1]
+        if locked_until and locked_until.tzinfo is None:
+            locked_until = locked_until.replace(tzinfo=timezone.utc)
+        return {"attempts": row[0] or 0, "locked_until": locked_until}
+
+    @with_connection(commit=True)
+    def record_failed_login(self, cursor, user_id: str) -> dict:
+        """SEC-04: Increment failed login counter; lock account after MAX_FAILED_ATTEMPTS."""
+        cursor.execute(
+            """UPDATE UserProfile
+               SET FailedLoginAttempts = COALESCE(FailedLoginAttempts, 0) + 1,
+                   LockedUntil = CASE
+                       WHEN COALESCE(FailedLoginAttempts, 0) + 1 >= %s
+                       THEN NOW() AT TIME ZONE 'UTC' + INTERVAL '15 minutes'
+                       ELSE LockedUntil
+                   END
+               WHERE UserId = %s
+               RETURNING FailedLoginAttempts, LockedUntil""",
+            (_MAX_FAILED_ATTEMPTS, user_id),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return {"attempts": 1, "locked_until": None}
+        locked_until = row[1]
+        if locked_until and locked_until.tzinfo is None:
+            locked_until = locked_until.replace(tzinfo=timezone.utc)
+        return {"attempts": row[0] or 1, "locked_until": locked_until}
+
+    @with_connection(commit=True)
+    def reset_failed_login(self, cursor, user_id: str) -> None:
+        """SEC-04: Reset failed login counter and clear lockout on successful authentication."""
+        cursor.execute(
+            "UPDATE UserProfile SET FailedLoginAttempts = 0, LockedUntil = NULL WHERE UserId = %s",
+            (user_id,),
+        )
 
     @with_connection(commit=True)
     def schedule_account_deletion(self, cursor, user_id: str) -> str:

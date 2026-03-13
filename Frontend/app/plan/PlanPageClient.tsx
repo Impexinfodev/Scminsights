@@ -2,11 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Ticket01Icon,
   CheckmarkCircle02Icon,
   AlertCircleIcon,
   ArrowRight01Icon,
@@ -19,13 +17,13 @@ export default function PlanPageClient() {
   const { sessionToken, isLoading: userLoading } = useUser({
     redirectTo: "/login",
   });
-  const router = useRouter();
-  const [licenseInfo, setLicenseInfo] = useState<any>(null);
+  const [licenseInfo, setLicenseInfo] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
 
   useEffect(() => {
     if (!sessionToken) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       return;
     }
@@ -41,9 +39,9 @@ export default function PlanPageClient() {
   const isTrial =
     !licenseInfo?.IsSimsAccess &&
     (licenseInfo?.LicenseType === "TRIAL" || !licenseInfo?.LicenseType);
-  const planDisplayName = licenseInfo?.LicenseName || licenseInfo?.LicenseType || "TRIAL";
-  const dirRows = licenseInfo?.NumberOfRowsPerPeriod ?? 10;
-  const searchRows = licenseInfo?.DirectoryRowsPerSearch ?? 5;
+  const planDisplayName = String(licenseInfo?.LicenseName || licenseInfo?.LicenseType || "TRIAL");
+  const dirRows = Number(licenseInfo?.NumberOfRowsPerPeriod ?? 10);
+  const searchRows = Number(licenseInfo?.DirectoryRowsPerSearch ?? 5);
 
   if (userLoading || loading) {
     return (

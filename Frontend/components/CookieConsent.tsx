@@ -11,6 +11,7 @@ export default function CookieConsent() {
   useEffect(() => {
     try {
       const consent = localStorage.getItem(COOKIE_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (!consent) setVisible(true);
     } catch {
       // localStorage unavailable (SSR, private mode)

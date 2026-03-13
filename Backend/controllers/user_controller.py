@@ -179,15 +179,19 @@ def get_hscodes_descriptions():
                     x for x in items
                     if q in x["code"].lower() or q in (x["name"] or "").lower()
                 ]
-        total = len(items)
-        if hscode_access == "limited":
-            total = min(total, hscode_max_rows)
         if sort == "description":
             items.sort(key=lambda x: ((x["name"] or "").lower(), x["code"]))
         elif sort == "type":
             items.sort(key=lambda x: ((x["type"] or "").lower(), x["code"]))
         else:
             items.sort(key=lambda x: x["code"])
+
+        # MT-01 FIX: For limited plans, hard-cap the dataset BEFORE slicing so that
+        # iterating pages cannot retrieve more than hscode_max_rows total rows.
+        if hscode_access == "limited":
+            items = items[:hscode_max_rows]
+
+        total = len(items)
         start = (page - 1) * page_size
         page_data = items[start : start + page_size]
         return jsonify({"data": page_data, "total": total}), 200
@@ -280,10 +284,12 @@ def data_export():
                     p.get("date", ""),
                     p.get("invoice_number", ""),
                 ])
-            return Response(
+            # UX-01 FIX: Include date in filename so users can distinguish multiple exports.
+        export_date = datetime.now(timezone.utc).strftime("%Y%m%d")
+        return Response(
                 buf.getvalue(),
                 mimetype="text/csv",
-                headers={"Content-Disposition": "attachment; filename=my_data_export.csv"},
+                headers={"Content-Disposition": f"attachment; filename=my_data_export_{export_date}.csv"},
             )
         return jsonify(export), 200
     except Exception as e:
@@ -299,7 +305,7 @@ def delete_account():
     Verifies password, then schedules account deletion 30 days out (cooling-off period).
     Actual deletion is executed by the weekly cleanup job after the cooling-off expires.
     """
-    import bcrypt
+    from services.auth_service import AuthService
     data = request.get_json(silent=True) or {}
     password = (data.get("password") or "").strip()
     if not password:
@@ -309,9 +315,9 @@ def delete_account():
         user = user_repo.get_user_by_id(request.user_id)
         if not user:
             return jsonify({"error": "User not found"}), 404
-        # Verify password
-        hash_pw = user.get("HashPassword") or ""
-        if not bcrypt.checkpw(password.encode("utf-8"), hash_pw.encode("utf-8") if isinstance(hash_pw, str) else hash_pw):
+        # CQ-08 FIX: Use AuthService.verify_password instead of calling bcrypt directly,
+        # keeping bcrypt usage centralised in one place.
+        if not AuthService.verify_password(password, user.get("HashPassword") or ""):
             return jsonify({"error": "Incorrect password"}), 401
         # Schedule deletion 30 days out (DPDP §12 cooling-off)
         scheduled_at = user_repo.schedule_account_deletion(request.user_id)

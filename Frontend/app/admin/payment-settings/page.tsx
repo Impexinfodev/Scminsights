@@ -78,7 +78,7 @@ function GatewayCard({
   backendUrl,
   onSaved,
 }: {
-  gatewayId: "razorpay" | "checkout";
+  gatewayId: "razorpay";
   cfg: GatewayConfig | undefined;
   title: string;
   description: string;
@@ -98,9 +98,6 @@ function GatewayCard({
 
   const set = (key: keyof Omit<FormState, "extraConfig">, value: unknown) =>
     setForm((f) => ({ ...f, [key]: value }));
-
-  const setExtra = (key: string, value: string) =>
-    setForm((f) => ({ ...f, extraConfig: { ...f.extraConfig, [key]: value } }));
 
   const handleSave = async () => {
     setSaving(true);
@@ -226,50 +223,6 @@ function GatewayCard({
           </div>
         </Field>
 
-        {/* Checkout.com-specific extra fields */}
-        {gatewayId === "checkout" && (
-          <>
-            <Field
-              label="Processing Channel ID"
-              hint="Required. Found in Checkout.com Dashboard → Settings → Channels. Starts with pc_"
-            >
-              <input
-                type="text"
-                value={form.extraConfig.processingChannelId ?? ""}
-                onChange={(e) => setExtra("processingChannelId", e.target.value)}
-                placeholder="pc_..."
-                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </Field>
-            <div className="flex items-center justify-between py-1">
-              <div>
-                <p className="text-sm font-medium text-gray-700">Sandbox Mode</p>
-                <p className="text-xs text-gray-500">
-                  Force sandbox API even if keys look like live keys
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() =>
-                  setExtra(
-                    "sandboxMode",
-                    form.extraConfig.sandboxMode === "true" ? "false" : "true"
-                  )
-                }
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                  form.extraConfig.sandboxMode === "true" ? "bg-yellow-400" : "bg-gray-300"
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                    form.extraConfig.sandboxMode === "true" ? "translate-x-6" : "translate-x-1"
-                  }`}
-                />
-              </button>
-            </div>
-          </>
-        )}
-
         {/* Last updated */}
         {cfg?.updatedAt && (
           <p className="text-xs text-gray-400">
@@ -293,9 +246,7 @@ function GatewayCard({
         <p className="text-xs text-gray-500">
           Webhook URL:{" "}
           <code className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">
-            {gatewayId === "razorpay"
-              ? "/api/payment/webhook"
-              : "/api/payment/checkout/webhook"}
+            /api/payment/webhook
           </code>
         </p>
       </div>
@@ -352,11 +303,9 @@ export default function PaymentSettingsPage() {
   }, [fetchConfigs]);
 
   const razorpayCfg = configs.find((c) => c.gatewayId === "razorpay");
-  const checkoutCfg = configs.find((c) => c.gatewayId === "checkout");
 
   const rzpMode = detectMode(razorpayCfg);
-  const ckoMode = detectMode(checkoutCfg);
-  const anyTestMode = rzpMode === "test" || ckoMode === "test";
+  const anyTestMode = rzpMode === "test";
 
   const handleSaved = (msg: string, type: "success" | "error") => {
     showToast(msg, type);
@@ -407,7 +356,7 @@ export default function PaymentSettingsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Payment Settings</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Manage Razorpay (INR) and Checkout.com (USD) gateway keys. At least one gateway must remain active.
+            Manage Razorpay (INR) payment gateway keys.
           </p>
         </div>
         {/* Clear test transactions button */}
@@ -427,19 +376,15 @@ export default function PaymentSettingsPage() {
           <div className="flex-1 min-w-0">
             <span className="text-sm font-semibold text-amber-800">Test / Sandbox Mode Active</span>
             <span className="text-xs text-amber-700 ml-2">
-              {[
-                rzpMode === "test" && "Razorpay (rzp_test_...)",
-                ckoMode === "test" && "Checkout.com (pk_sbox_...)",
-              ].filter(Boolean).join(" · ")}
-              {" "}— no real money will be charged.
+              Razorpay (rzp_test_...) — no real money will be charged.
             </span>
           </div>
           <span className="shrink-0 px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-800 text-xs font-bold tracking-wide">TEST</span>
         </div>
       )}
 
-      {/* Live mode confirmation when all active gateways are live */}
-      {!anyTestMode && (rzpMode === "live" || ckoMode === "live") && (
+      {/* Live mode confirmation */}
+      {rzpMode === "live" && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200">
           <span className="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-emerald-500" />
           <span className="text-sm font-semibold text-emerald-800">Live Mode — real payments enabled.</span>
@@ -447,7 +392,7 @@ export default function PaymentSettingsPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="max-w-xl">
         <GatewayCard
           gatewayId="razorpay"
           cfg={razorpayCfg}
@@ -458,26 +403,14 @@ export default function PaymentSettingsPage() {
           backendUrl={backendUrl}
           onSaved={handleSaved}
         />
-        <GatewayCard
-          gatewayId="checkout"
-          cfg={checkoutCfg}
-          title="Checkout.com"
-          description="International customers — Visa, Mastercard, AMEX"
-          currency="$ USD"
-          sessionToken={sessionToken}
-          backendUrl={backendUrl}
-          onSaved={handleSaved}
-        />
       </div>
 
       <div className="bg-blue-50 rounded-xl border border-blue-100 p-4 text-sm text-blue-800 space-y-1">
         <p className="font-semibold">Quick guide</p>
         <ul className="list-disc list-inside space-y-0.5 text-xs">
-          <li>If both gateways are active, users will see a currency picker on the checkout page.</li>
-          <li>If only one is active, users go directly to that gateway.</li>
-          <li>Test mode is auto-detected from the Key ID prefix (<code className="bg-blue-100 px-1 rounded">rzp_test_</code> / <code className="bg-blue-100 px-1 rounded">pk_sbox_</code>).</li>
+          <li>Test mode is auto-detected from the Key ID prefix (<code className="bg-blue-100 px-1 rounded">rzp_test_</code>).</li>
           <li>Secret keys are never shown in full — leaving the masked value (****xxxx) unchanged keeps the stored key.</li>
-          <li>Checkout.com test card: <code className="bg-blue-100 px-1 rounded">4242 4242 4242 4242</code>, any future date, any CVV. 3DS: <code className="bg-blue-100 px-1 rounded">Checkout1!</code></li>
+          <li>Razorpay webhook URL: <code className="bg-blue-100 px-1 rounded">/api/payment/webhook</code></li>
         </ul>
       </div>
 

@@ -145,8 +145,9 @@ function AdminAssignLicenseContent() {
             total_pages: res.data?.pagination?.total_pages ?? 0,
           }));
         })
-        .catch((err: any) => {
-          setError(err.response?.data?.error || "Failed to load users");
+        .catch((err: unknown) => {
+          const e = err as { response?: { data?: { error?: string } } };
+          setError(e.response?.data?.error || "Failed to load users");
           setUsers([]);
         })
         .finally(() => setLoading(false));
@@ -246,8 +247,9 @@ function AdminAssignLicenseContent() {
       setSuccess(`License "${licenseType}" assigned to ${emailId || userId}.`);
       fetchUsers();
       fetchLicenseStats();
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to assign license");
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e.response?.data?.error || "Failed to assign license");
     } finally {
       setAssigning(null);
     }

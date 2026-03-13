@@ -196,3 +196,12 @@ USER_PROFILE_DPDP_ALTER_STATEMENTS = [
     # 30-day cooling-off period for account deletion (DPDP §12)
     "ALTER TABLE UserProfile ADD COLUMN IF NOT EXISTS DeletionScheduledAt TIMESTAMPTZ;",
 ]
+
+# SEC-04: Per-account failed login tracking for lockout protection.
+# FailedLoginAttempts increments on each bad password; resets to 0 on success.
+# LockedUntil is set 15 minutes into the future after MAX_FAILED_ATTEMPTS failures.
+USER_PROFILE_LOCKOUT_ALTER_STATEMENTS = [
+    "ALTER TABLE UserProfile ADD COLUMN IF NOT EXISTS FailedLoginAttempts INT NOT NULL DEFAULT 0;",
+    "ALTER TABLE UserProfile ADD COLUMN IF NOT EXISTS LockedUntil TIMESTAMPTZ;",
+    "CREATE INDEX IF NOT EXISTS idx_user_locked_until ON UserProfile (LockedUntil) WHERE LockedUntil IS NOT NULL;",
+]

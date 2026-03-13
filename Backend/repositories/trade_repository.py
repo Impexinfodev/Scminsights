@@ -33,10 +33,18 @@ OUTPUT_COLUMNS = [
 _pool: Optional[ConnectionPool] = None
 
 
+def set_shared_pool(pool: ConnectionPool) -> None:
+    """ARCH-03 FIX: Called by RepoProvider at startup to inject the shared pool.
+    Eliminates the third independent pool that previously connected to the same DB."""
+    global _pool
+    _pool = pool
+
+
 def _get_pool() -> ConnectionPool:
     global _pool
     if _pool is not None:
         return _pool
+    # Fallback: create own pool when called outside of RepoProvider context (tools, tests)
     from config import POSTGRES_CONFIG
     c = POSTGRES_CONFIG
     conninfo = (
@@ -188,6 +196,9 @@ def get_available_years(trade_type: str, hs_code_prefix: str) -> List[int]:
     pool = _get_pool()
     with pool.connection() as conn:
         with conn.cursor() as cur:
+            # ARCH-05 FIX: Apply the same 15-second statement timeout used in
+            # get_top_traders so a slow years query cannot hold a pool connection indefinitely.
+            cur.execute("SET statement_timeout = 15000")
             cur.execute(
                 "SELECT DISTINCT year FROM trade_company_report "
                 "WHERE trade_type = %s AND hs_code LIKE %s ORDER BY year",
@@ -212,6 +223,9 @@ def get_summary_stats(
     pool = _get_pool()
     with pool.connection() as conn:
         with conn.cursor() as cur:
+            # ARCH-05 FIX: Apply the same 15-second statement timeout used in
+            # get_top_traders so a slow summary query cannot hold a pool connection indefinitely.
+            cur.execute("SET statement_timeout = 15000")
             cur.execute(
                 "SELECT "
                 "  COUNT(DISTINCT enterprise), "

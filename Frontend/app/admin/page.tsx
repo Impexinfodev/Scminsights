@@ -97,14 +97,15 @@ export default function AdminDashboardPage() {
       setLicenseStats(licRes.data?.by_license ?? []);
       setRecentUsers(usrRes.data?.users ?? []);
       setRecentTxs(txRes.data?.transactions ?? []);
-    } catch (err: any) {
-      const status = err.response?.status;
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: { error?: string } } };
+      const status = e.response?.status;
       if (status === 401) {
         // Session expired — redirect to login
         router.replace("/login");
         return;
       }
-      setError(err.response?.data?.error || "Failed to load dashboard data");
+      setError(e.response?.data?.error || "Failed to load dashboard data");
     } finally {
       setLoading(false);
     }

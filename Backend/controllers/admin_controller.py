@@ -3,6 +3,7 @@ import logging
 from flask import Blueprint, request, jsonify
 from middlewares.auth_middleware import require_auth, require_admin
 from utils.helpers import validate_pagination_params
+from utils.audit import audit_event
 
 logger = logging.getLogger(__name__)
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
@@ -70,29 +71,45 @@ def export_users():
     search_term = (request.args.get("search") or "").strip() or None
     sort_by, sort_order, activation_status = _users_query_params()
     admin_repo = RepoProvider.get_admin_repo()
-    users, _ = admin_repo.get_all_users(
-        sort_order=sort_order,
-        search_term=search_term,
-        page=1,
-        page_size=10000,
-        sort_by=sort_by,
-        activation_status=activation_status,
-    )
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(["Email", "Name", "Company", "Status", "License", "Role", "User Id"])
-    for u in users:
-        writer.writerow([
-            u.get("EmailId") or u.get("UserId") or "",
-            u.get("Name") or "",
-            u.get("Company") or "",
-            "Active" if u.get("ActivationStatus") else "Inactive",
-            u.get("LicenseType") or "",
-            u.get("Role") or "USER",
-            u.get("UserId") or "",
-        ])
+    # ARCH-04 FIX: Stream CSV rows as a generator instead of loading up to 10 000
+    # user dicts into a single in-memory StringIO buffer.
+    def _generate():
+        chunk = io.StringIO()
+        w = csv.writer(chunk)
+        w.writerow(["Email", "Name", "Company", "Status", "License", "Role", "User Id"])
+        yield chunk.getvalue()
+        page_num = 1
+        page_sz = 500
+        while True:
+            batch, _ = admin_repo.get_all_users(
+                sort_order=sort_order,
+                search_term=search_term,
+                page=page_num,
+                page_size=page_sz,
+                sort_by=sort_by,
+                activation_status=activation_status,
+            )
+            if not batch:
+                break
+            chunk = io.StringIO()
+            w = csv.writer(chunk)
+            for u in batch:
+                w.writerow([
+                    u.get("EmailId") or u.get("UserId") or "",
+                    u.get("Name") or "",
+                    u.get("Company") or "",
+                    "Active" if u.get("ActivationStatus") else "Inactive",
+                    u.get("LicenseType") or "",
+                    u.get("Role") or "USER",
+                    u.get("UserId") or "",
+                ])
+            yield chunk.getvalue()
+            if len(batch) < page_sz:
+                break
+            page_num += 1
+
     return Response(
-        buf.getvalue(),
+        _generate(),
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=users.csv"},
     )
@@ -144,6 +161,7 @@ def update_user_status():
         return jsonify({"error": "User not found"}), 404
     admin_repo = RepoProvider.get_admin_repo()
     admin_repo.update_user_activation_status(user_id, status)
+    audit_event("admin_user_status_change", user_id=getattr(request, "user_id", ""), outcome="ok", target=user_id[:8] + "***", status=status)
     return jsonify({"message": "User status updated", "EmailId": user_id, "ActivationStatus": status}), 200
 
 
@@ -172,6 +190,7 @@ def update_user_role():
         admin_repo.update_user_role(user_id, role)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+    audit_event("admin_role_change", user_id=getattr(request, "user_id", ""), outcome="ok", target=user_id[:8] + "***", role=role)
     return jsonify({"message": "Role updated", "EmailId": user_id, "Role": role}), 200
 
 
@@ -183,8 +202,13 @@ def delete_user():
     user_id = request.args.get("EmailId", "").strip()
     if not user_id:
         return jsonify({"error": "EmailId is required"}), 400
+    # SEC-02 FIX: Prevent an admin from deleting their own account, which would
+    # lock out the admin panel with no recovery path.
+    if user_id == getattr(request, "user_id", None):
+        return jsonify({"error": "You cannot delete your own account via the admin panel"}), 400
     admin_repo = RepoProvider.get_admin_repo()
     admin_repo.delete_user(user_id)
+    audit_event("admin_user_deleted", user_id=getattr(request, "user_id", ""), outcome="ok", target=user_id[:8] + "***")
     return jsonify({"message": "User deleted"}), 200
 
 
@@ -400,8 +424,13 @@ def delete_license():
 @require_admin
 def get_contacts():
     from repositories.repo_provider import RepoProvider
-    page = max(1, int(request.args.get("page", 1)))
-    page_size = max(1, min(100, int(request.args.get("page_size", 50))))
+    # CQ-06 FIX: Wrap int() casts in try/except so a non-numeric query param
+    # returns 400 instead of an unhandled 500 ValueError.
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+        page_size = max(1, min(100, int(request.args.get("page_size", 50))))
+    except (TypeError, ValueError):
+        return jsonify({"error": "page and page_size must be integers"}), 400
     sort_order = (request.args.get("sort_order") or "desc").lower()
     admin_repo = RepoProvider.get_admin_repo()
     messages, total = admin_repo.get_contact_messages(page=page, page_size=page_size, sort_order=sort_order)
@@ -487,6 +516,7 @@ def assign_license():
     if not admin_repo.get_license_by_type(license_type):
         return jsonify({"error": "License type not found"}), 404
     admin_repo.assign_license(user_id, license_type)
+    audit_event("admin_license_assigned", user_id=getattr(request, "user_id", ""), outcome="ok", target=user_id[:8] + "***", plan=license_type)
     return jsonify({"message": "License assigned"}), 200
 
 
@@ -558,40 +588,57 @@ def export_transactions():
     to_date = request.args.get("to_date", "").strip() or None
     website = request.args.get("website", "").strip() or None
     admin_repo = RepoProvider.get_admin_repo()
-    rows, _ = admin_repo.get_transactions(
-        page=1,
-        page_size=10000,
-        sort_order="desc",
-        status=status,
-        user_id=user_id,
-        from_date=from_date,
-        to_date=to_date,
-        website=website,
-    )
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow([
-        "Id", "Date", "Order ID", "Payment ID", "User ID", "Email", "Plan", "Amount (₹)", "Currency", "Status", "Website", "Created At", "Updated At",
-    ])
-    for r in rows:
-        amount_rupees = (r.get("AmountPaise") or 0) / 100
-        writer.writerow([
-            r.get("Id"),
-            r.get("CreatedAt", "")[:10],
-            r.get("RazorpayOrderId"),
-            r.get("RazorpayPaymentId"),
-            r.get("UserId"),
-            r.get("EmailId"),
-            r.get("LicenseType"),
-            f"{amount_rupees:.2f}",
-            r.get("Currency"),
-            r.get("Status"),
-            r.get("SourceWebsite") or "",
-            r.get("CreatedAt"),
-            r.get("UpdatedAt"),
+    # ARCH-04 FIX: Stream CSV rows as a generator instead of loading up to 10 000
+    # transaction dicts into a single in-memory StringIO buffer.
+    def _generate():
+        chunk = io.StringIO()
+        w = csv.writer(chunk)
+        w.writerow([
+            "Id", "Date", "Order ID", "Payment ID", "User ID", "Email", "Plan",
+            "Amount (₹)", "Currency", "Status", "Website", "Created At", "Updated At",
         ])
+        yield chunk.getvalue()
+        page_num = 1
+        page_sz = 500
+        while True:
+            batch, _ = admin_repo.get_transactions(
+                page=page_num,
+                page_size=page_sz,
+                sort_order="desc",
+                status=status,
+                user_id=user_id,
+                from_date=from_date,
+                to_date=to_date,
+                website=website,
+            )
+            if not batch:
+                break
+            chunk = io.StringIO()
+            w = csv.writer(chunk)
+            for r in batch:
+                amount_rupees = (r.get("AmountPaise") or 0) / 100
+                w.writerow([
+                    r.get("Id"),
+                    r.get("CreatedAt", "")[:10],
+                    r.get("RazorpayOrderId"),
+                    r.get("RazorpayPaymentId"),
+                    r.get("UserId"),
+                    r.get("EmailId"),
+                    r.get("LicenseType"),
+                    f"{amount_rupees:.2f}",
+                    r.get("Currency"),
+                    r.get("Status"),
+                    r.get("SourceWebsite") or "",
+                    r.get("CreatedAt"),
+                    r.get("UpdatedAt"),
+                ])
+            yield chunk.getvalue()
+            if len(batch) < page_sz:
+                break
+            page_num += 1
+
     return Response(
-        buf.getvalue(),
+        _generate(),
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=transactions.csv"},
     )
@@ -599,7 +646,7 @@ def export_transactions():
 
 # ---------- Payment Gateway Config ----------
 
-_SUPPORTED_GATEWAYS = {"razorpay", "checkout"}
+_SUPPORTED_GATEWAYS = {"razorpay"}
 
 
 @admin_bp.route("/payment-gateway-config", methods=["GET"])

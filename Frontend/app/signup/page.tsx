@@ -15,7 +15,6 @@ import {
   ViewIcon,
   ViewOffIcon,
   UserIcon,
-  SmartPhone01Icon,
   Building02Icon,
   Cancel01Icon,
   CheckmarkCircle02Icon,
@@ -74,19 +73,23 @@ function Toast({
       animate={{ opacity: 1, y: 0, x: 0 }}
       exit={{ opacity: 0, y: -20, x: 20 }}
       className={`fixed top-4 right-4 z-50 max-w-sm w-full p-4 rounded-xl border shadow-lg ${colors[status]}`}
+      role="alert"
+      aria-live={status === "error" ? "assertive" : "polite"}
+      aria-atomic="true"
     >
       <div className="flex gap-3">
         <HugeiconsIcon
           icon={icons[status]}
           size={20}
           className={iconColors[status]}
+          aria-hidden="true"
         />
         <div className="flex-1">
           <p className="font-semibold text-sm">{title}</p>
           <p className="text-sm opacity-80 mt-0.5">{description}</p>
         </div>
-        <button onClick={onClose} className="opacity-60 hover:opacity-100">
-          <HugeiconsIcon icon={Cancel01Icon} size={16} />
+        <button onClick={onClose} className="opacity-60 hover:opacity-100" aria-label="Dismiss notification">
+          <HugeiconsIcon icon={Cancel01Icon} size={16} aria-hidden="true" />
         </button>
       </div>
     </motion.div>
@@ -158,7 +161,7 @@ export default function SignupPage() {
   ];
 
   const validateForm = () => {
-    let newErrors: Record<string, string> = {};
+    const newErrors: Record<string, string> = {};
 
     if (!formValues.fullName.trim())
       newErrors.fullName = "Full name is required";
@@ -254,8 +257,9 @@ export default function SignupPage() {
       setTimeout(() => {
         router.push("/login");
       }, 2000);
-    } catch (error: any) {
-      const msg = error.response?.data?.message;
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string; error?: string; details?: string[] } } };
+      const msg = err.response?.data?.message;
 
       if (msg === "EMAIL_EXISTS") {
         showToast(
@@ -270,11 +274,12 @@ export default function SignupPage() {
           "info",
         );
       } else {
-        showToast(
-          "Something Went Wrong",
-          error.response?.data?.error || "Please try again later.",
-          "error",
-        );
+        // UX-02 FIX: Show specific password-rule failures when the backend returns them.
+        const details = err.response?.data?.details;
+        const errMsg = details && details.length > 0
+          ? details.join(" • ")
+          : (err.response?.data?.error || "Please try again later.");
+        showToast("Something Went Wrong", errMsg, "error");
       }
     } finally {
       setIsLoading(false);

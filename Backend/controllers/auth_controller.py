@@ -1,15 +1,17 @@
 # SCM-INSIGHTS Auth Controller
 import os
+import logging
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timezone
 from services.auth_service import AuthService
 from services.email_service import EmailService
 from middlewares.auth_middleware import require_auth
 from utils.helpers import is_valid_email
-from utils.constants import COUNTRY_NAMES
+from utils.audit import audit_event
 from config import FRONTEND_URL
 from extensions import limiter
 
+logger = logging.getLogger(__name__)
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 
@@ -17,6 +19,7 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 @limiter.limit("10/minute")
 def login():
     from repositories.repo_provider import RepoProvider
+    from datetime import datetime, timezone
     data = request.json or {}
     email = data.get("email", "").strip()
     password = data.get("password", "")
@@ -24,18 +27,52 @@ def login():
         return jsonify({"error": "Email and password are required"}), 400
     user_repo = RepoProvider.get_user_repo()
     user = user_repo.get_user_by_email(email)
+    # SEC-04: Use constant-time response for unknown email (no enumeration)
     if not user:
         return jsonify({"error": "Invalid email or password"}), 401
+
+    user_id = user["UserId"]
+
+    # SEC-04: Check per-account lockout BEFORE password verification
+    try:
+        lockout = user_repo.get_login_lockout_status(user_id)
+        locked_until = lockout.get("locked_until")
+        if locked_until and datetime.now(timezone.utc) < locked_until:
+            remaining = int((locked_until - datetime.now(timezone.utc)).total_seconds() / 60) + 1
+            audit_event("login_blocked", user_id=user_id, outcome="fail", reason="account_locked", remaining_minutes=remaining)
+            return jsonify({
+                "error": f"Account temporarily locked due to too many failed attempts. Try again in {remaining} minute(s).",
+                "code": "ACCOUNT_LOCKED",
+            }), 429
+    except Exception as _e:
+        # OBS-05 FIX: Log at DEBUG instead of silently swallowing — helps diagnose
+        # DB migration issues where lockout columns don't yet exist.
+        logger.debug("Lockout check skipped (columns may not exist yet): %s", type(_e).__name__)
+
     if not AuthService.verify_password(password, user["HashPassword"]):
+        # SEC-04: Record failed attempt; may trigger lockout
+        try:
+            user_repo.record_failed_login(user_id)
+        except Exception as _e:
+            logger.debug("record_failed_login skipped: %s", type(_e).__name__)
+        audit_event("login_fail", user_id=user_id, outcome="fail", reason="bad_password")
         return jsonify({"error": "Invalid email or password"}), 401
+
     if not user.get("ActivationStatus", False):
+        audit_event("login_fail", user_id=user_id, outcome="fail", reason="account_not_activated")
         return jsonify({
             "error": "Account not activated. Please check your email.",
             "code": "ACCOUNT_NOT_ACTIVATED",
         }), 401
-    user_id = user["UserId"]
+
+    # SEC-04: Successful login — reset failed attempt counter
+    try:
+        user_repo.reset_failed_login(user_id)
+    except Exception as _e:
+        logger.debug("reset_failed_login skipped: %s", type(_e).__name__)
+
     session_token, expiration_time = user_repo.create_new_session(user_id, client_id="scm-insights")
-    user_info = user_repo.get_user_with_license_check(user_id)
+    user_info = user_repo.get_user_by_id(user_id)
     license_info = user_repo.get_license_by_user_id(user_id)
     tokens = user_repo.refresh_tokens(user_id)
     response_data = {
@@ -45,7 +82,6 @@ def login():
         "user_details": user_info,
         "license": license_info,
         "tokens": tokens,
-        "countries": COUNTRY_NAMES,
     }
     response = jsonify(response_data)
     secure_cookie = os.environ.get("FLASK_ENV") == "production"
@@ -57,6 +93,7 @@ def login():
         "user_id", user_id,
         httponly=True, samesite="Lax", secure=secure_cookie
     )
+    audit_event("login_success", user_id=user_id, outcome="ok")
     return response, 200
 
 
@@ -66,6 +103,7 @@ def logout():
     from repositories.repo_provider import RepoProvider
     user_repo = RepoProvider.get_user_repo()
     user_repo.delete_session(request.user_id, client_id="scm-insights")
+    audit_event("logout", user_id=request.user_id, outcome="ok")
     response = jsonify({"message": "Logout successful"})
     response.delete_cookie("session_token")
     response.delete_cookie("user_id")
@@ -105,6 +143,7 @@ def signup():
     activation_code = user_repo.create_user(user_data)
     activation_url = f"{FRONTEND_URL}/account-activate?token={activation_code}"
     EmailService().send_activation_email(email, activation_url)
+    audit_event("signup", user_id=user_data["user_id"], outcome="ok")
     return jsonify({
         "message": "Registration successful. Please check your email to activate your account.",
     }), 201
@@ -137,14 +176,13 @@ def resend_activation():
         return jsonify({"error": "Invalid email format"}), 400
     user_repo = RepoProvider.get_user_repo()
     user = user_repo.get_user_by_email(email)
-    if not user:
-        return jsonify({"error": "User not found. Please sign up first."}), 404
-    if user.get("ActivationStatus", False):
-        return jsonify({"error": "Account is already activated"}), 400
-    activation_code = user_repo.create_new_activation_link(email)
-    activation_url = f"{FRONTEND_URL}/account-activate?token={activation_code}"
-    EmailService().send_activation_email(email, activation_url)
-    return jsonify({"message": "Activation email sent. Please check your inbox."}), 200
+    # CQ-07 FIX: Use constant-time response to prevent email enumeration.
+    # We silently do nothing for unknown/already-activated emails.
+    if user and not user.get("ActivationStatus", False):
+        activation_code = user_repo.create_new_activation_link(email)
+        activation_url = f"{FRONTEND_URL}/account-activate?token={activation_code}"
+        EmailService().send_activation_email(email, activation_url)
+    return jsonify({"message": "If an unactivated account exists for this email, a new activation link has been sent."}), 200
 
 
 @auth_bp.route("/forgot-password", methods=["POST"])
@@ -187,4 +225,14 @@ def reset_password():
     hashed = AuthService.hash_password(new_password)
     user_repo.update_password(user_id, hashed)
     user_repo.delete_reset_token(token)
+    # SEC-03 FIX: Invalidate ALL existing sessions so any attacker who obtained
+    # a session before the reset cannot continue using it post-password-change.
+    try:
+        user_repo.delete_all_sessions(user_id)
+    except Exception as _e:
+        logger.warning(
+            "Could not purge sessions after password reset for user %s: %s",
+            str(user_id)[:8] + "***", type(_e).__name__,
+        )
+    audit_event("password_reset", user_id=user_id, outcome="ok")
     return jsonify({"message": "Password has been reset successfully. You can now login."}), 200

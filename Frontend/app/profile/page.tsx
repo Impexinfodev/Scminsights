@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { HugeiconsIcon, type HugeiconsIconProps } from "@hugeicons/react";
 import {
   UserIcon,
   Mail01Icon,
@@ -21,7 +21,6 @@ import {
   AlertCircleIcon,
   Invoice01Icon,
   CreditCardIcon,
-  Tick02Icon,
   Clock01Icon,
 } from "@hugeicons/core-free-icons";
 import { useUser } from "@/hooks/useUser";
@@ -55,8 +54,12 @@ function generateInvoiceHTML(payment: Payment, user: { name: string; email: stri
   const base = payment.amount_inr / 1.18;
   const gst = payment.amount_inr - base;
 
+  // i18n-01 FIX: Helper to format INR amounts with Indian locale (lakh/crore grouping).
+  const fmtINR = (n: number) =>
+    n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en-IN">
 <head>
 <meta charset="UTF-8"/>
 <title>Invoice ${invoiceNo}</title>
@@ -143,15 +146,15 @@ function generateInvoiceHTML(payment: Payment, user: { name: string; email: stri
         </td>
         <td style="font-family:monospace;">998314</td>
         <td>Annual</td>
-        <td>₹${base.toFixed(2)}</td>
+        <td>₹${fmtINR(base)}</td>
       </tr>
     </tbody>
   </table>
 
   <div class="totals">
-    <div class="totals-row"><span>Subtotal (excl. GST)</span><span>₹${base.toFixed(2)}</span></div>
-    <div class="totals-row"><span>IGST @ 18%</span><span>₹${gst.toFixed(2)}</span></div>
-    <div class="totals-row total"><span>Total</span><span>₹${payment.amount_inr.toFixed(2)}</span></div>
+    <div class="totals-row"><span>Subtotal (excl. GST)</span><span>₹${fmtINR(base)}</span></div>
+    <div class="totals-row"><span>IGST @ 18%</span><span>₹${fmtINR(gst)}</span></div>
+    <div class="totals-row total"><span>Total</span><span>₹${fmtINR(payment.amount_inr)}</span></div>
   </div>
 
   <div class="tax-note">
@@ -225,7 +228,7 @@ function StatusBadge({ status }: { status: string }) {
 
 type Tab = "profile" | "orders";
 
-const TABS: { id: Tab; label: string; icon: any }[] = [
+const TABS: { id: Tab; label: string; icon: HugeiconsIconProps["icon"] }[] = [
   { id: "profile", label: "Profile & Security", icon: UserIcon },
   { id: "orders", label: "Orders & Billing", icon: CreditCardIcon },
 ];
@@ -330,8 +333,9 @@ export default function ProfilePage() {
       );
       setSaveSuccess(true); setIsEditing(false);
       setTimeout(() => { setSaveSuccess(false); router.refresh(); }, 1500);
-    } catch (err: any) {
-      setSaveError(err.response?.data?.error || "Failed to update profile. Please try again.");
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setSaveError(e.response?.data?.error || "Failed to update profile. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -367,8 +371,9 @@ export default function ProfilePage() {
       );
       setDeletionScheduledAt(res.data?.deletion_scheduled_at ?? null);
       setShowDeleteModal(false);
-    } catch (err: any) {
-      setDeleteError(err.response?.data?.error || "Failed to schedule account deletion. Please try again.");
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setDeleteError(e.response?.data?.error || "Failed to schedule account deletion. Please try again.");
     } finally { setIsDeleting(false); }
   };
 
@@ -382,8 +387,9 @@ export default function ProfilePage() {
         { headers: { "Session-Token": sessionToken ?? "", "X-Client": "scm-insights" } },
       );
       setDeletionScheduledAt(null);
-    } catch (err: any) {
-      setCancelDeletionError(err.response?.data?.error || "Failed to cancel. Please try again.");
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setCancelDeletionError(e.response?.data?.error || "Failed to cancel. Please try again.");
     } finally { setIsCancellingDeletion(false); }
   };
 

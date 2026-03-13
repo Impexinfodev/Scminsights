@@ -55,7 +55,7 @@ const maskMobile = (mobile: string) => {
   return mobile.substring(0, 2) + "****" + mobile.substring(mobile.length - 2);
 };
 
-const maskName = (name: string) => {
+const _maskName = (name: string) => {
   if (!name) return "*****";
   const words = name.split(" ");
   if (words.length >= 2) {
@@ -72,7 +72,7 @@ const maskName = (name: string) => {
 };
 
 export default function BuyersDirectoryPageClient() {
-  const { sessionToken, isLoading: userLoading } = useUser({
+  const { sessionToken } = useUser({
     redirectTo: "/login",
   });
 
@@ -91,7 +91,7 @@ export default function BuyersDirectoryPageClient() {
     has_prev: false,
   });
 
-  const [licenseInfo, setLicenseInfo] = useState<any>(null);
+  const [licenseInfo, setLicenseInfo] = useState<Record<string, unknown> | null>(null);
   const [isCheckingLicense, setIsCheckingLicense] = useState(true);
   const [toast, setToast] = useState<{
     message: string;
@@ -136,8 +136,9 @@ export default function BuyersDirectoryPageClient() {
         headers: { "Session-Token": sessionToken },
       });
       setLicenseInfo(response.data || null);
-    } catch (error: any) {
-      if (error.response?.status === 401) {
+    } catch (error: unknown) {
+      const err = error as { response?: { status?: number } };
+      if (err.response?.status === 401) {
         localStorage.removeItem("session");
         router.push("/login");
       }
@@ -156,11 +157,11 @@ export default function BuyersDirectoryPageClient() {
     [licenseInfo],
   );
   const trialDirLimit = useMemo(
-    () => licenseInfo?.NumberOfRowsPerPeriod ?? 10,
+    () => Number(licenseInfo?.NumberOfRowsPerPeriod ?? 10),
     [licenseInfo],
   );
   const trialSearchRows = useMemo(
-    () => licenseInfo?.DirectoryRowsPerSearch ?? 5,
+    () => Number(licenseInfo?.DirectoryRowsPerSearch ?? 5),
     [licenseInfo],
   );
   const effectivePageSize = hasSimsAccess ? pageSize : trialSearchRows;
@@ -209,7 +210,7 @@ export default function BuyersDirectoryPageClient() {
         if (!hasSimsAccess) {
           fetchedData = fetchedData
             .slice(0, trialDirLimit)
-            .map((item: any) => ({
+            .map((item: DirectoryItem) => ({
               ...item,
               // Name visible in directory; only contact details masked for trial
               IEC_NAME: item.IEC_NAME ?? "",
@@ -232,14 +233,15 @@ export default function BuyersDirectoryPageClient() {
 
         setData(fetchedData);
       }
-    } catch (error: any) {
-      if (error.response?.status === 401) {
+    } catch (error: unknown) {
+      const err = error as { response?: { status?: number; data?: { error?: string } } };
+      if (err.response?.status === 401) {
         localStorage.removeItem("session");
         router.push("/login");
         return;
       }
       setToast({
-        message: error.response?.data?.error || "Failed to load data.",
+        message: err.response?.data?.error || "Failed to load data.",
         type: "error",
       });
       setData([]);
@@ -397,7 +399,7 @@ export default function BuyersDirectoryPageClient() {
                   </span>{" "}
                   of{" "}
                   <span className="font-semibold text-gray-900">
-                    {paginationMeta.total_items.toLocaleString()}
+                    {paginationMeta.total_items.toLocaleString("en-IN")}
                   </span>{" "}
                   companies
                 </>

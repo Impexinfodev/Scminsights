@@ -40,17 +40,24 @@ def _conninfo(host, port, dbname, user, password):
 
 
 class PostgresAdminRepository(AdminRepository):
-    def __init__(self, db_user, db_password, db_name, db_host, db_port):
-        self.connection_pool = ConnectionPool(
-            _conninfo(db_host, db_port, db_name, db_user, db_password),
-            min_size=1,
-            max_size=10,
-            check=ConnectionPool.check_connection,
-        )
+    def __init__(self, pool=None, db_user=None, db_password=None, db_name=None, db_host=None, db_port=None):
+        # ARCH-03 FIX: Accept a shared pool from RepoProvider. Falls back to
+        # creating a local pool when called directly (tools, tests, etc.).
+        if pool is not None:
+            self.connection_pool = pool
+            self._owns_pool = False
+        else:
+            self.connection_pool = ConnectionPool(
+                _conninfo(db_host, db_port, db_name, db_user, db_password),
+                min_size=1,
+                max_size=10,
+                check=ConnectionPool.check_connection,
+            )
+            self._owns_pool = True
 
     def close(self):
-        """Close the connection pool. Call before process exit (e.g. init_db) to avoid shutdown errors."""
-        if getattr(self, "connection_pool", None) is not None:
+        """Close the connection pool only if this repository created it (not shared)."""
+        if getattr(self, "_owns_pool", True) and getattr(self, "connection_pool", None) is not None:
             try:
                 self.connection_pool.close()
             except Exception:

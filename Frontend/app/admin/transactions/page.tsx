@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { HugeiconsIcon, type HugeiconsIconProps } from "@hugeicons/react";
 import {
   Ticket01Icon,
   Loading03Icon,
@@ -95,7 +95,7 @@ function DetailRow({ label, value, mono = false, copyable = false, icon }: {
   value: React.ReactNode;
   mono?: boolean;
   copyable?: boolean;
-  icon?: any;
+  icon?: HugeiconsIconProps["icon"];
 }) {
   return (
     <div className="flex items-start gap-3 py-2.5 border-b border-gray-50 last:border-0">
@@ -130,7 +130,7 @@ function TransactionDetailModal({
 }) {
   const isCaptured = tx.Status?.toLowerCase() === "captured";
 
-  let metadata: Record<string, any> | null = null;
+  let metadata: Record<string, unknown> | null = null;
   if (tx.MetadataJson) {
     try {
       metadata = typeof tx.MetadataJson === "string" ? JSON.parse(tx.MetadataJson) : tx.MetadataJson;

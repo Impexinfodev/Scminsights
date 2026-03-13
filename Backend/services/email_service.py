@@ -1,12 +1,18 @@
 # SCM-INSIGHTS Email Service
+import html
 import logging
 import smtplib
+import threading
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import List, Optional
 from config import EMAIL_CONFIG
 
 logger = logging.getLogger(__name__)
+
+# REL-03: SMTP connection + operation timeout in seconds.
+# Prevents a hung SMTP server from blocking a Flask worker indefinitely.
+_SMTP_TIMEOUT_SECONDS = 10
 
 
 class EmailService:
@@ -31,7 +37,9 @@ class EmailService:
             msg["To"] = ", ".join(to)
             msg["Subject"] = subject
             msg.attach(MIMEText(body, "html" if is_html else "plain", "utf-8"))
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+            # REL-03 FIX: Pass timeout to SMTP constructor so a slow or
+            # unreachable mail server cannot hang the Flask worker indefinitely.
+            with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=_SMTP_TIMEOUT_SECONDS) as server:
                 if self.use_tls:
                     server.starttls()
                 if self.smtp_user and self.smtp_password:
@@ -39,8 +47,21 @@ class EmailService:
                 server.sendmail(self.smtp_user, to, msg.as_string())
             return True
         except Exception as e:
-            logger.error("[EmailService] Failed to send email: %s", e)
+            # SEC-08 FIX: Log only the exception type, never the full message.
+            # smtplib errors can include the email body which may contain security tokens.
+            masked_recipient = (to[0][:3] + "***") if to else "?"
+            logger.error("[EmailService] Failed to send email to %s: %s", masked_recipient, type(e).__name__)
             return False
+
+    def _send_async(self, to: List[str], subject: str, body: str, is_html: bool = True) -> None:
+        """REL-01 FIX: Fire email sending in a daemon thread so the HTTP request
+        handler returns immediately without blocking on SMTP I/O."""
+        t = threading.Thread(
+            target=self._send_email,
+            args=(to, subject, body, is_html),
+            daemon=True,
+        )
+        t.start()
 
     def send_activation_email(self, email: str, activation_url: str) -> bool:
         html = f"""
@@ -80,7 +101,10 @@ class EmailService:
         </body>
         </html>
         """
-        return self._send_email([email], "Welcome to SCM Insights – Activate Your Account", html)
+        # REL-01 FIX: Fire-and-forget in a background thread so signup does not
+        # block the HTTP response while waiting for SMTP round-trip.
+        self._send_async([email], "Welcome to SCM Insights – Activate Your Account", html)
+        return True
 
     def send_password_reset_email(self, email: str, reset_url: str) -> bool:
         html = f"""
@@ -101,7 +125,9 @@ class EmailService:
         </body>
         </html>
         """
-        return self._send_email([email], "SCM Insights: Reset Your Password", html)
+        # REL-01 FIX: Fire-and-forget so password-reset request returns immediately.
+        self._send_async([email], "SCM Insights: Reset Your Password", html)
+        return True
 
     def send_contact_reply(
         self,
@@ -110,15 +136,19 @@ class EmailService:
         subject: str,
         body: str,
     ) -> bool:
-        """Send reply from admin to a contact form submission. Body is plain text or HTML."""
-        html = f"""
+        """Send reply from admin to a contact form submission. Body is treated as plain text."""
+        # SEC-09 FIX: HTML-escape the admin-supplied body and recipient_name before embedding
+        # in the email template to prevent stored XSS via malicious admin reply content.
+        safe_name = html.escape(recipient_name or "there")
+        safe_body = html.escape(body or "").replace("\n", "<br>")
+        email_html = f"""
         <!DOCTYPE html>
         <html>
         <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
         <body style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #333; line-height: 1.6;">
-            <p style="margin: 0 0 16px 0;">Hi {recipient_name or 'there'},</p>
+            <p style="margin: 0 0 16px 0;">Hi {safe_name},</p>
             <div style="margin: 20px 0; padding: 16px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
-                {body.replace(chr(10), "<br>") if body else ""}
+                {safe_body}
             </div>
             <p style="color: #666; font-size: 13px; margin: 24px 0 0 0;">Best regards,<br/>SCM Insights Team</p>
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 28px 0 20px 0;">
@@ -128,4 +158,4 @@ class EmailService:
         </body>
         </html>
         """
-        return self._send_email([to_email], subject or "Re: Your enquiry – SCM Insights", html)
+        return self._send_email([to_email], subject or "Re: Your enquiry – SCM Insights", email_html)

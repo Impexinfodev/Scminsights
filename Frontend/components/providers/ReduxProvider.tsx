@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect } from "react";
 import { Provider } from "react-redux";
 import { makeStore, AppStore, initializeAuth, validateSession } from "@/lib/store";
 
@@ -11,8 +11,9 @@ interface ReduxProviderProps {
 export default function ReduxProvider({ children }: ReduxProviderProps) {
   const storeRef = useRef<AppStore | null>(null);
 
+  // eslint-disable-next-line react-hooks/refs
   if (!storeRef.current) {
-    // Create the store instance the first time this renders
+    // Create the store instance the first time this renders (recommended Redux+Next.js pattern)
     storeRef.current = makeStore();
   }
 
@@ -57,5 +58,6 @@ export default function ReduxProvider({ children }: ReduxProviderProps) {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/refs
   return <Provider store={storeRef.current}>{children}</Provider>;
 }

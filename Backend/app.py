@@ -4,9 +4,11 @@
 # Main entry. Same tech and flow as main Impexinfo backend; separate DB and auth.
 
 import os
+import signal
+import secrets
 import logging
 import logging.handlers
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -86,6 +88,9 @@ def create_app(config_override=None):
         _admin_repo.apply_payment_transaction_alters()
         if hasattr(_user_repo, "apply_user_profile_alters"):
             _user_repo.apply_user_profile_alters()
+        # SEC-04: apply lockout columns migration
+        if hasattr(_user_repo, "apply_lockout_alters"):
+            _user_repo.apply_lockout_alters()
     except Exception as _e:
         logger.warning("Startup migrations warning: %s", _e)
 
@@ -105,6 +110,33 @@ def create_app(config_override=None):
     app.register_blueprint(public_bp)
     app.register_blueprint(contact_bp)
     app.register_blueprint(trade_bp)
+
+    # OBS-01 FIX: Stamp every request with a short correlation ID so that a single
+    # user-facing error code can be traced across all log lines for that request.
+    # The client may supply its own X-Request-ID (useful for frontend tracing);
+    # otherwise we generate a fresh 8-byte hex token.
+    @app.before_request
+    def stamp_request_id():
+        supplied = (request.headers.get("X-Request-ID") or "").strip()
+        g.request_id = supplied if supplied else secrets.token_hex(8)
+
+    # CQ-05 FIX: Reject POST/PUT/PATCH requests that claim to carry a JSON body but
+    # omit (or send the wrong) Content-Type header.  Without this guard a client
+    # sending text/plain bypasses request.json parsing — the controller silently
+    # receives an empty dict and may accept partial/empty input as valid.
+    # Exemptions: webhook (raw bytes), multipart uploads.
+    @app.before_request
+    def require_json_content_type():
+        if request.method not in ("POST", "PUT", "PATCH"):
+            return None
+        path = (request.path or "").rstrip("/")
+        if path == "/api/payment/webhook":
+            return None  # raw bytes — no Content-Type requirement
+        ct = (request.content_type or "").lower()
+        # Only enforce when a body is actually present
+        if request.content_length and request.content_length > 0:
+            if "application/json" not in ct and "multipart/" not in ct and "application/x-www-form-urlencoded" not in ct:
+                return jsonify({"error": "Content-Type must be application/json", "code": "INVALID_CONTENT_TYPE"}), 415
 
     # CSRF mitigation: all state-changing requests must carry at least one custom header.
     # Browsers cannot add custom headers to cross-site form POST or img/script requests,
@@ -146,14 +178,32 @@ def create_app(config_override=None):
 
     @app.after_request
     def add_cors_headers(response):
-        # Already handled by Flask-CORS for normal requests, 
-        # but this ensures headers are present even on hard crashes or if CORS fails
+        # Already handled by Flask-CORS for normal requests,
+        # but this ensures headers are present even on hard crashes or if CORS fails.
         origin = request.headers.get("Origin")
         if origin in CORS_ORIGINS:
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
             response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Session-Token, X-Client, X-Request-Timestamp, X-Request-Nonce, X-Client-Version, X-Request-Source"
+        # OBS-01 FIX: Echo correlation ID back to the client so support can match
+        # a user-reported error to the exact server-side log lines.
+        request_id = getattr(g, "request_id", None)
+        if request_id:
+            response.headers["X-Request-ID"] = request_id
+            # CQ-02 FIX: Inject request_id into JSON error responses so the frontend
+            # can display it to the user for support escalation.
+            if (response.status_code >= 400
+                    and response.content_type
+                    and "application/json" in response.content_type):
+                import json as _json
+                try:
+                    body = _json.loads(response.get_data(as_text=True))
+                    if isinstance(body, dict) and "request_id" not in body:
+                        body["request_id"] = request_id
+                        response.set_data(_json.dumps(body))
+                except (ValueError, TypeError):
+                    pass
         return response
 
     return app
@@ -189,9 +239,28 @@ def health_check():
     return {"status": status, "service": "scm-insights-backend", "db": "ok" if db_ok else "error"}, http_code
 
 
+def _shutdown_handler(signum, frame):
+    """REL-04 FIX: Gracefully close the shared connection pool on SIGTERM/SIGINT
+    so in-flight queries can complete and connections are returned cleanly."""
+    logger.info("Received signal %s — shutting down gracefully…", signum)
+    try:
+        from repositories.repo_provider import RepoProvider
+        RepoProvider.reset()
+        logger.info("Connection pool closed.")
+    except Exception as _e:
+        logger.warning("Error during pool shutdown: %s", _e)
+    raise SystemExit(0)
+
+
+signal.signal(signal.SIGTERM, _shutdown_handler)
+signal.signal(signal.SIGINT, _shutdown_handler)
+
+
 if __name__ == "__main__":
     flask_env = FLASK_CONFIG["ENV"]
-    debug_mode = flask_env == "development"
+    # SEC-12 FIX: Debug mode requires BOTH FLASK_ENV=development AND FLASK_DEBUG=True.
+    # This prevents accidental Werkzeug interactive debugger exposure if only ENV is wrong.
+    debug_mode = flask_env == "development" and FLASK_CONFIG.get("DEBUG", False)
     host = FLASK_CONFIG["HOST"]
     port = FLASK_CONFIG["PORT"]
     logger.info("=" * 60)

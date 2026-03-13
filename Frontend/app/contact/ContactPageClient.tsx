@@ -62,19 +62,23 @@ function Toast({
       animate={{ opacity: 1, y: 0, x: 0 }}
       exit={{ opacity: 0, y: -20, x: 20 }}
       className={`fixed top-4 right-4 z-50 max-w-sm w-full p-4 rounded-xl border shadow-lg ${colors[status]}`}
+      role="alert"
+      aria-live={status === "error" ? "assertive" : "polite"}
+      aria-atomic="true"
     >
       <div className="flex gap-3">
         <HugeiconsIcon
           icon={icons[status]}
           size={20}
           className={iconColors[status]}
+          aria-hidden="true"
         />
         <div className="flex-1">
           <p className="font-semibold text-sm">{title}</p>
           <p className="text-sm opacity-80 mt-0.5">{description}</p>
         </div>
-        <button onClick={onClose} className="opacity-60 hover:opacity-100">
-          <HugeiconsIcon icon={Cancel01Icon} size={16} />
+        <button onClick={onClose} className="opacity-60 hover:opacity-100" aria-label="Dismiss notification">
+          <HugeiconsIcon icon={Cancel01Icon} size={16} aria-hidden="true" />
         </button>
       </div>
     </motion.div>
@@ -186,10 +190,11 @@ export default function ContactPageClient() {
           data?.error || data?.message || "Failed to submit your request.",
         );
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string };
       showToast(
         "Something Went Wrong",
-        error.message || "Unable to send your message. Please try again.",
+        err.message || "Unable to send your message. Please try again.",
         "error",
       );
     } finally {

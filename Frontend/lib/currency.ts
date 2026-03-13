@@ -7,7 +7,8 @@ export function isUserInIndia(): boolean {
   try {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
     if (tz === "Asia/Kolkata") return true;
-    const lang = navigator.language || (navigator as any).userLanguage || "";
+    const nav = navigator as Navigator & { userLanguage?: string };
+    const lang = nav.language || nav.userLanguage || "";
     if (lang.startsWith("en-IN") || lang.startsWith("hi")) return true;
   } catch {
     // ignore

@@ -83,9 +83,20 @@ FLASK_CONFIG = {
 # CORS
 # ===========================================
 
-CORS_ORIGINS = get_env_list(
-    "CORS_ORIGINS",
-)
+CORS_ORIGINS = get_env_list("CORS_ORIGINS", "")
+# SEC-06 FIX: Provide safe defaults when CORS_ORIGINS is not set so the app
+# does not silently block all requests or open to all origins.
+# In production, CORS_ORIGINS must be explicitly set in the environment.
+if not CORS_ORIGINS:
+    import os as _os
+    _env = _os.environ.get("FLASK_ENV", "development")
+    if _env == "production":
+        raise ValueError(
+            "CORS_ORIGINS must be set in production. "
+            "Example: CORS_ORIGINS=https://scminsights.ai,https://www.scminsights.ai"
+        )
+    # Development fallback
+    CORS_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
 
 # ===========================================

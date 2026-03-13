@@ -136,8 +136,9 @@ export default function AdminContactsPage() {
       );
       setReplyModal(null);
       fetchContacts();
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to send reply");
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e.response?.data?.error || "Failed to send reply");
     } finally {
       setReplySending(false);
     }
@@ -153,8 +154,9 @@ export default function AdminContactsPage() {
       });
       setDeleteConfirm(null);
       fetchContacts();
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to delete");
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e.response?.data?.error || "Failed to delete");
     } finally {
       setActionLoading(null);
     }

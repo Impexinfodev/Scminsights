@@ -73,15 +73,18 @@ function Toast({
       animate={{ opacity: 1, y: 0, x: 0 }}
       exit={{ opacity: 0, y: -20, x: 20 }}
       className={`fixed top-4 right-4 z-50 max-w-sm w-full p-4 rounded-xl border shadow-lg ${colors[status]}`}
+      role="alert"
+      aria-live={status === "error" ? "assertive" : "polite"}
+      aria-atomic="true"
     >
       <div className="flex gap-3">
-        <HugeiconsIcon icon={icons[status]} size={20} className={iconColors[status]} />
+        <HugeiconsIcon icon={icons[status]} size={20} className={iconColors[status]} aria-hidden="true" />
         <div className="flex-1">
           <p className="font-semibold text-sm">{title}</p>
           <p className="text-sm opacity-80 mt-0.5">{description}</p>
         </div>
-        <button onClick={onClose} className="opacity-60 hover:opacity-100">
-          <HugeiconsIcon icon={Cancel01Icon} size={16} />
+        <button onClick={onClose} className="opacity-60 hover:opacity-100" aria-label="Dismiss notification">
+          <HugeiconsIcon icon={Cancel01Icon} size={16} aria-hidden="true" />
         </button>
       </div>
     </motion.div>
@@ -100,8 +103,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [toast, setToast] = useState<{ title: string; description: string; status: "success" | "error" | "warning" | "info" } | null>(null);
-
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
 
   useEffect(() => {
     // Redirect if already logged in (only after session is checked)
@@ -144,7 +145,7 @@ export default function LoginPage() {
 
     // Validation
     let isValid = true;
-    let newErrors = { email: "", password: "" };
+    const newErrors = { email: "", password: "" };
 
     if (!formData.email) {
       newErrors.email = "Email is required";
@@ -200,12 +201,13 @@ export default function LoginPage() {
       } else {
         throw new Error("Invalid response");
       }
-    } catch (error: any) {
-      if (error.response?.status === 401) {
+    } catch (error: unknown) {
+      const err = error as { response?: { status?: number; data?: { error?: string } }; message?: string };
+      if (err.response?.status === 401) {
         setErrors({ email: " ", password: " " });
         showToast("Login Failed", "Please check your email and password.", "error");
       } else {
-        const errorMessage = error.response?.data?.error || error.message || "Unknown error";
+        const errorMessage = err.response?.data?.error || err.message || "Unknown error";
         showToast("Connection Error", `Please try again. ${errorMessage}`, "error");
       }
     } finally {

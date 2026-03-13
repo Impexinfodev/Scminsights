@@ -38,19 +38,26 @@ export function Toast({ message, type = "info", duration = 4000, onClose }: Toas
 
   if (!visible) return null;
 
+  // ACC-02 FIX: Use aria-live="assertive" only for errors (interrupts screen reader immediately).
+  // Success/info/warning use aria-live="polite" (waits for screen reader to finish current speech).
+  // aria-atomic="true" ensures the full message is re-read if it updates.
+  const liveRegion = type === "error" ? "assertive" : "polite";
+
   return (
     <div
       className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-lg px-5 py-3 text-white shadow-lg ${BG[type]} animate-fade-in`}
       role="alert"
+      aria-live={liveRegion}
+      aria-atomic="true"
     >
-      <span className="text-lg font-bold">{ICONS[type]}</span>
+      <span className="text-lg font-bold" aria-hidden="true">{ICONS[type]}</span>
       <span className="text-sm font-medium">{message}</span>
       <button
         onClick={() => { setVisible(false); onClose?.(); }}
         className="ml-2 text-white/70 hover:text-white transition-colors"
-        aria-label="Dismiss"
+        aria-label="Dismiss notification"
       >
-        ✕
+        <span aria-hidden="true">✕</span>
       </button>
     </div>
   );

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -62,15 +62,18 @@ function Toast({
       animate={{ opacity: 1, y: 0, x: 0 }}
       exit={{ opacity: 0, y: -20, x: 20 }}
       className={`fixed top-4 right-4 z-50 max-w-sm w-full p-4 rounded-xl border shadow-lg ${colors[status]}`}
+      role="alert"
+      aria-live={status === "error" ? "assertive" : "polite"}
+      aria-atomic="true"
     >
       <div className="flex gap-3">
-        <HugeiconsIcon icon={icons[status]} size={20} className={iconColors[status]} />
+        <HugeiconsIcon icon={icons[status]} size={20} className={iconColors[status]} aria-hidden="true" />
         <div className="flex-1">
           <p className="font-semibold text-sm">{title}</p>
           <p className="text-sm opacity-80 mt-0.5">{description}</p>
         </div>
-        <button onClick={onClose} className="opacity-60 hover:opacity-100">
-          <HugeiconsIcon icon={Cancel01Icon} size={16} />
+        <button onClick={onClose} className="opacity-60 hover:opacity-100" aria-label="Dismiss notification">
+          <HugeiconsIcon icon={Cancel01Icon} size={16} aria-hidden="true" />
         </button>
       </div>
     </motion.div>
@@ -78,7 +81,6 @@ function Toast({
 }
 
 function ForgotPasswordContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [email, setEmail] = useState(searchParams.get("email") || "");
@@ -118,10 +120,11 @@ function ForgotPasswordContent() {
 
       setIsSubmitted(true);
       showToast("Email Sent!", "Check your inbox for password reset instructions.", "success");
-    } catch (error: any) {
-      const errorMsg = error.response?.data?.error || error.response?.data?.message;
-      
-      if (error.response?.status === 404 || errorMsg === "USER_NOT_FOUND") {
+    } catch (error: unknown) {
+      const err = error as { response?: { status?: number; data?: { error?: string; message?: string } } };
+      const errorMsg = err.response?.data?.error || err.response?.data?.message;
+
+      if (err.response?.status === 404 || errorMsg === "USER_NOT_FOUND") {
         showToast("Email Not Found", "No account exists with this email address.", "error");
       } else {
         showToast("Something Went Wrong", errorMsg || "Please try again later.", "error");
