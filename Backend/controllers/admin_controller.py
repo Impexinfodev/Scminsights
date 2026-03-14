@@ -563,6 +563,8 @@ def get_transactions():
     from_date = request.args.get("from_date", "").strip() or None
     to_date = request.args.get("to_date", "").strip() or None
     website = request.args.get("website", "").strip() or None
+    # exclude_test defaults True; pass exclude_test=false to show test transactions
+    exclude_test = request.args.get("exclude_test", "true").strip().lower() != "false"
     page = max(1, page)
     page_size = min(max(1, page_size), 100)
     admin_repo = RepoProvider.get_admin_repo()
@@ -575,6 +577,7 @@ def get_transactions():
         from_date=from_date,
         to_date=to_date,
         website=website,
+        exclude_test=exclude_test,
     )
     total_pages = (total + page_size - 1) // page_size if total > 0 else 0
     return jsonify({
@@ -617,6 +620,7 @@ def export_transactions():
     from_date = request.args.get("from_date", "").strip() or None
     to_date = request.args.get("to_date", "").strip() or None
     website = request.args.get("website", "").strip() or None
+    exclude_test = request.args.get("exclude_test", "true").strip().lower() != "false"
     admin_repo = RepoProvider.get_admin_repo()
     # ARCH-04 FIX: Stream CSV rows as a generator instead of loading up to 10 000
     # transaction dicts into a single in-memory StringIO buffer.
@@ -640,6 +644,7 @@ def export_transactions():
                 from_date=from_date,
                 to_date=to_date,
                 website=website,
+                exclude_test=exclude_test,
             )
             if not batch:
                 break

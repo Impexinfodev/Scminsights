@@ -264,11 +264,12 @@ export default function AdminTransactionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [detailRow, setDetailRow] = useState<Transaction | null>(null);
   const [filters, setFilters] = useState({
-    status: "",
+    status: "captured",
     user_id: "",
     from_date: "",
     to_date: "",
     website: "",
+    exclude_test: true,
   });
 
   const isAdmin = user?.user_details?.Role === "ADMIN";
@@ -290,6 +291,7 @@ export default function AdminTransactionsPage() {
       if (filters.from_date) params.set("from_date", filters.from_date);
       if (filters.to_date) params.set("to_date", filters.to_date);
       if (filters.website) params.set("website", filters.website);
+      params.set("exclude_test", filters.exclude_test ? "true" : "false");
       axios
         .get(`${backendUrl}/api/admin/transactions?${params.toString()}`, {
           headers: {
@@ -338,6 +340,7 @@ export default function AdminTransactionsPage() {
       if (filters.from_date) params.set("from_date", filters.from_date);
       if (filters.to_date) params.set("to_date", filters.to_date);
       if (filters.website) params.set("website", filters.website);
+      params.set("exclude_test", filters.exclude_test ? "true" : "false");
       const res = await fetch(
         `${backendUrl}/api/admin/transactions/export?${params.toString()}`,
         {
@@ -427,7 +430,7 @@ export default function AdminTransactionsPage() {
       )}
 
       {/* Filters */}
-      <div className="mb-6 p-4 rounded-xl bg-gray-50 border border-gray-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+      <div className="mb-6 p-4 rounded-xl bg-gray-50 border border-gray-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
         <input
           type="text"
           placeholder="User / Email"
@@ -477,16 +480,29 @@ export default function AdminTransactionsPage() {
           }
           className="px-3 py-2 rounded-lg border border-gray-200 text-sm"
         />
-        <button
-          type="button"
-          onClick={() => {
-            setPagination((p) => ({ ...p, page: 1 }));
-            fetchTransactions(1);
-          }}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
-        >
-          Apply
-        </button>
+        <div className="flex flex-col gap-2">
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!filters.exclude_test}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, exclude_test: !e.target.checked }))
+              }
+              className="rounded border-gray-300 text-blue-600"
+            />
+            Show test transactions
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              setPagination((p) => ({ ...p, page: 1 }));
+              fetchTransactions(1);
+            }}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+          >
+            Apply
+          </button>
+        </div>
       </div>
 
       <motion.div

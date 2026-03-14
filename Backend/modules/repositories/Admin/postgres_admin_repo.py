@@ -706,6 +706,7 @@ class PostgresAdminRepository(AdminRepository):
         from_date=None,
         to_date=None,
         website=None,
+        exclude_test=True,
     ):
         order = "DESC" if str(sort_order).lower() == "desc" else "ASC"
         offset = (max(1, page) - 1) * max(1, min(page_size, 100))
@@ -728,6 +729,8 @@ class PostgresAdminRepository(AdminRepository):
         if website is not None and str(website).strip():
             conditions.append("SourceWebsite = %s")
             params.append(website.strip())
+        if exclude_test:
+            conditions.append("COALESCE(IsTestMode, FALSE) = FALSE")
         where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
         cursor.execute(
             f"""SELECT Id, RazorpayOrderId, RazorpayPaymentId, UserId, EmailId, LicenseType, AmountPaise, Currency, Status, SourceWebsite, MetadataJson, CreatedAt, UpdatedAt, COALESCE(IsTestMode, FALSE)
