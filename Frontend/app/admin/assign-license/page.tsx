@@ -66,6 +66,7 @@ function AdminAssignLicenseContent() {
     redirectTo: "/login",
   });
 
+  const [mounted, setMounted] = useState(false);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [licenses, setLicenses] = useState<LicenseOption[]>([]);
   const [licenseStats, setLicenseStats] = useState<{
@@ -95,6 +96,8 @@ function AdminAssignLicenseContent() {
 
   const isAdmin = user?.user_details?.Role === "ADMIN";
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     if (!sessionChecked || !isLoggedIn) return;
@@ -255,7 +258,7 @@ function AdminAssignLicenseContent() {
     }
   };
 
-  if (userLoading || !sessionChecked || (isLoggedIn && !isAdmin)) {
+  if (!mounted || userLoading || !sessionChecked || (isLoggedIn && !isAdmin)) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center">
         <HugeiconsIcon

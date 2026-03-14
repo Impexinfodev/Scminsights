@@ -40,6 +40,7 @@ def _setup_logging():
     # Silence overly verbose third-party loggers
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("flask_limiter").setLevel(logging.ERROR)
 
 
 _setup_logging()
@@ -86,6 +87,10 @@ def create_app(config_override=None):
         _admin_repo = _RP.get_admin_repo()
         _user_repo = _RP.get_user_repo()
         _admin_repo.apply_payment_transaction_alters()
+        if hasattr(_admin_repo, "apply_user_license_migration"):
+            _admin_repo.apply_user_license_migration()
+        if hasattr(_admin_repo, "apply_activation_migration"):
+            _admin_repo.apply_activation_migration()
         if hasattr(_user_repo, "apply_user_profile_alters"):
             _user_repo.apply_user_profile_alters()
         # SEC-04: apply lockout columns migration

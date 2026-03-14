@@ -206,7 +206,7 @@ export default function PlansPageClient() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [myLicenseType, setMyLicenseType] = useState<string | null>(null);
+  const [myLicenses, setMyLicenses] = useState<string[]>([]);
   const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL ?? "").trim();
 
   useEffect(() => {
@@ -237,7 +237,14 @@ export default function PlansPageClient() {
         signal: ctrl.signal,
         timeout: API_REQUEST_TIMEOUT,
       })
-      .then((res) => setMyLicenseType(res.data?.LicenseType ?? null))
+      .then((res) => {
+        const owned: string[] = Array.isArray(res.data?.OwnedLicenses)
+          ? res.data.OwnedLicenses
+          : res.data?.LicenseType && res.data.LicenseType !== "TRIAL"
+            ? [res.data.LicenseType]
+            : [];
+        setMyLicenses(owned);
+      })
       .catch((err) => {
         if (axios.isCancel(err) || err.name === "AbortError" || err.name === "CanceledError") return;
       });
@@ -311,15 +318,13 @@ export default function PlansPageClient() {
             >
               {plans.map((plan, index) => {
                 const theme = PLAN_THEMES[plan.LicenseType] ?? DEFAULT_THEME;
-                const isCurrent = isLoggedIn && myLicenseType === plan.LicenseType;
-                const isUserOnTopPlan =
-                  isLoggedIn &&
-                  (myLicenseType === "BUNDLE" ||
-                    plans.some((p) => p.LicenseType === myLicenseType && p.IsTopPlan));
-                const canUpgrade =
-                  isLoggedIn && !isCurrent && !isUserOnTopPlan && isPlanHigherThan(myLicenseType, plan.LicenseType);
-                const canDowngrade =
-                  isLoggedIn && !isCurrent && isPlanLowerThan(myLicenseType, plan.LicenseType);
+                const isOwned = isLoggedIn && myLicenses.includes(plan.LicenseType);
+                const isTrial = plan.LicenseType === "TRIAL";
+                // BUNDLE is redundant if user already owns DIRECTORY + TRADE
+                const ownsDirectoryAndTrade = myLicenses.includes("DIRECTORY") && myLicenses.includes("TRADE");
+                const isBundleRedundant = plan.LicenseType === "BUNDLE" && ownsDirectoryAndTrade;
+                const canPurchase = isLoggedIn && !isOwned && !isTrial && !isBundleRedundant;
+                const canDowngrade = false; // multi-license: no downgrade concept, just revoke via admin
 
                 const { inrFormatted, usdFormatted, inIndia } = getPlanPriceBoth(plan);
                 const isFree = plan.Price === 0 || inrFormatted === "Free" || usdFormatted === "Free";
@@ -337,24 +342,32 @@ export default function PlansPageClient() {
                     className={`
                       relative flex flex-col rounded-2xl bg-white border-2 transition-all duration-300
                       hover:-translate-y-1.5 hover:shadow-xl
-                      ${isCurrent
+                      ${isOwned
                         ? `ring-2 ring-offset-2 ${theme.ringClass} ${theme.cardBorder}`
                         : `${theme.cardBorder} hover:shadow-lg`
                       }
                     `}
                     style={{ width: 270, minWidth: 240, maxWidth: 300 }}
                   >
-                    {/* Current Plan badge */}
-                    {isCurrent && (
+                    {/* Owned badge */}
+                    {isOwned && !isTrial && (
                       <div className="absolute -top-px inset-x-0 flex justify-center">
                         <div className="bg-blue-700 text-white text-[10px] font-bold px-3 py-1 rounded-b-lg flex items-center gap-1 shadow-sm">
                           <HugeiconsIcon icon={CheckmarkCircle02Icon} size={11} />
-                          Current Plan
+                          Active Plan
+                        </div>
+                      </div>
+                    )}
+                    {isBundleRedundant && (
+                      <div className="absolute -top-px inset-x-0 flex justify-center">
+                        <div className="bg-emerald-600 text-white text-[10px] font-bold px-3 py-1 rounded-b-lg flex items-center gap-1 shadow-sm">
+                          <HugeiconsIcon icon={CheckmarkCircle02Icon} size={11} />
+                          Already have this coverage
                         </div>
                       </div>
                     )}
 
-                    <div className={`flex flex-col flex-1 p-5 ${isCurrent ? "pt-8" : "pt-5"}`}>
+                    <div className={`flex flex-col flex-1 p-5 ${isOwned || isBundleRedundant ? "pt-8" : "pt-5"}`}>
 
                       {/* Icon + Name + Badge */}
                       <div className="flex items-start gap-3 mb-3">
@@ -413,30 +426,27 @@ export default function PlansPageClient() {
                             Get Started
                             <HugeiconsIcon icon={ArrowRight01Icon} size={15} />
                           </Link>
-                        ) : isCurrent ? (
+                        ) : isOwned && !isTrial ? (
                           <Link
                             href="/plan"
-                            className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-700 text-sm font-bold hover:border-gray-300 hover:bg-gray-50 transition-all"
+                            className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-bold hover:bg-emerald-100 transition-all"
                           >
-                            Manage Plan
-                            <HugeiconsIcon icon={ArrowRight01Icon} size={15} />
+                            <HugeiconsIcon icon={CheckmarkCircle02Icon} size={15} />
+                            Active — View Details
                           </Link>
-                        ) : canUpgrade ? (
+                        ) : isBundleRedundant ? (
+                          <div className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-100 bg-gray-50 text-gray-400 text-sm font-bold cursor-default">
+                            Covered by your plans
+                          </div>
+                        ) : canPurchase ? (
                           <Link
                             href={`/checkout?plan=${encodeURIComponent(plan.LicenseType)}`}
                             className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all ${theme.ctaClass}`}
                           >
-                            Upgrade Now
+                            {myLicenses.length > 0 ? "Add Plan" : "Upgrade Now"}
                             <HugeiconsIcon icon={ArrowRight01Icon} size={15} />
                           </Link>
-                        ) : canDowngrade ? (
-                          <Link
-                            href="/contact"
-                            className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 text-gray-500 text-sm font-bold hover:bg-gray-50 transition-colors"
-                          >
-                            Contact to Change
-                          </Link>
-                        ) : null}
+                        ) : canDowngrade ? null : null}
                       </div>
 
                     </div>

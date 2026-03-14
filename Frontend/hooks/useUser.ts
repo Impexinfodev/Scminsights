@@ -9,7 +9,7 @@ import {
   selectUser,
   selectIsLoading,
   selectSessionChecked,
-  validateSession,
+  initializeAuth,
 } from "@/lib/store";
 
 interface UseUserOptions {
@@ -28,8 +28,10 @@ export function useUser(options: UseUserOptions = {}) {
   const sessionChecked = useAppSelector(selectSessionChecked);
 
   useEffect(() => {
-    // Validate session on mount
-    dispatch(validateSession());
+    // On mount: read localStorage and hydrate Redux auth state.
+    // validateSession only checks already-loaded state; after a page refresh
+    // Redux resets to null, so we must call initializeAuth to restore the session.
+    dispatch(initializeAuth());
   }, [dispatch]);
 
   useEffect(() => {

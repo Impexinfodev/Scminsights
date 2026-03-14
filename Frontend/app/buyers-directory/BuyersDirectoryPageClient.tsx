@@ -128,16 +128,20 @@ export default function BuyersDirectoryPageClient() {
 
   const fetchLicenseInfo = useCallback(async () => {
     if (!sessionToken) {
+      console.debug("[Directory] fetchLicenseInfo: no sessionToken yet, skipping");
       setIsCheckingLicense(false);
       return;
     }
+    console.debug("[Directory] fetchLicenseInfo: fetching with token", sessionToken.slice(0, 8) + "…");
     try {
       const response = await axios.get(`${backendUrl}/userLicenseInfo`, {
         headers: { "Session-Token": sessionToken },
       });
+      console.debug("[Directory] licenseInfo received:", response.data);
       setLicenseInfo(response.data || null);
     } catch (error: unknown) {
       const err = error as { response?: { status?: number } };
+      console.debug("[Directory] fetchLicenseInfo error status:", err.response?.status);
       if (err.response?.status === 401) {
         localStorage.removeItem("session");
         router.push("/login");
@@ -188,6 +192,7 @@ export default function BuyersDirectoryPageClient() {
   }, [searchQuery]);
 
   const fetchSimsData = useCallback(async () => {
+    console.debug("[Directory] fetchSimsData: hasSimsAccess=%s sessionToken=%s page=%s", hasSimsAccess, sessionToken ? sessionToken.slice(0, 8) + "…" : "null", currentPage);
     setIsLoading(true);
     try {
       const params = new URLSearchParams({
@@ -267,9 +272,15 @@ export default function BuyersDirectoryPageClient() {
     router,
   ]);
 
+  // Only fetch data once license check is complete — prevents a masked fetch
+  // firing before hasSimsAccess is known, which caused the flicker on refresh.
   useEffect(() => {
+    if (isCheckingLicense) {
+      console.debug("[Directory] fetchSimsData blocked: still checking license");
+      return;
+    }
     fetchSimsData();
-  }, [fetchSimsData]);
+  }, [fetchSimsData, isCheckingLicense]);
 
   // Pagination handlers
   const totalPages = Math.ceil(paginationMeta.total_items / effectivePageSize);

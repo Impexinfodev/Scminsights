@@ -31,6 +31,9 @@ from modules.db.postgres_models import (
     DROP_PAYMENT_TABLE,
     CREATE_PAYMENT_GATEWAY_CONFIG_TABLE,
     PAYMENT_TRANSACTION_ALTER_STATEMENTS,
+    CREATE_USER_LICENSE_TABLE,
+    USER_LICENSE_INDEX_STATEMENTS,
+    ACTIVATION_MIGRATE_STATEMENTS,
 )
 from psycopg_pool import ConnectionPool
 
@@ -114,6 +117,36 @@ class PostgresAdminRepository(AdminRepository):
             except Exception:
                 cursor.connection.rollback()
                 pass
+
+        # Multi-license table
+        cursor.execute(CREATE_USER_LICENSE_TABLE)
+        cursor.connection.commit()
+        for stmt in USER_LICENSE_INDEX_STATEMENTS:
+            try:
+                cursor.execute(stmt)
+                cursor.connection.commit()
+            except Exception:
+                cursor.connection.rollback()
+                pass
+
+        # Migrate existing paid licenses from UserProfile.LicenseType → UserLicense.
+        # TRIAL users are skipped — TRIAL is the implicit baseline, never stored in UserLicense.
+        try:
+            cursor.execute("""
+                INSERT INTO UserLicense (UserId, LicenseType, ValidTill)
+                SELECT up.UserId, up.LicenseType,
+                    COALESCE(up.LicenseValidTill, NOW() + INTERVAL '1 year')
+                FROM UserProfile up
+                WHERE up.LicenseType IS NOT NULL
+                  AND up.LicenseType != 'TRIAL'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM UserLicense ul
+                    WHERE ul.UserId = up.UserId AND ul.LicenseType = up.LicenseType
+                  )
+            """)
+            cursor.connection.commit()
+        except Exception:
+            cursor.connection.rollback()
 
         # SimsDirectory: no seed. Remove legacy dummy rows if present (exact match).
         try:
@@ -406,10 +439,87 @@ class PostgresAdminRepository(AdminRepository):
             info.get("Validity") or info.get("Period"),
             info.get("ValidityDays"),
         )
+        # Multi-license: upsert into UserLicense (renews validity if already owned).
+        # TRIAL is the implicit fallback and is never inserted into UserLicense.
+        if license_type != "TRIAL":
+            cursor.execute(
+                """INSERT INTO UserLicense (UserId, LicenseType, ValidTill)
+                   VALUES (%s, %s, %s)
+                   ON CONFLICT (UserId, LicenseType) DO UPDATE SET ValidTill = EXCLUDED.ValidTill""",
+                (user_id, license_type, valid_till),
+            )
+        # Keep UserProfile.LicenseType updated to the "highest" owned plan for legacy
+        # compatibility (some queries still join on UserProfile.LicenseType).
+        cursor.execute("""
+            UPDATE UserProfile
+            SET LicenseType = COALESCE((
+                SELECT ul.LicenseType FROM UserLicense ul
+                JOIN License lt ON ul.LicenseType = lt.LicenseType
+                WHERE ul.UserId = %s AND ul.ValidTill > NOW()
+                ORDER BY CASE ul.LicenseType
+                    WHEN 'BUNDLE'    THEN 1
+                    WHEN 'TRADE'     THEN 2
+                    WHEN 'DIRECTORY' THEN 3
+                    ELSE 4
+                END
+                LIMIT 1
+            ), 'TRIAL'),
+            LicenseValidTill = COALESCE((
+                SELECT ul.ValidTill FROM UserLicense ul
+                WHERE ul.UserId = %s AND ul.ValidTill > NOW()
+                ORDER BY ul.ValidTill DESC LIMIT 1
+            ), LicenseValidTill)
+            WHERE UserId = %s
+        """, (user_id, user_id, user_id))
+
+    @with_connection(commit=False)
+    def get_user_licenses(self, cursor, user_id):
+        """Return list of all active licenses for a user (excludes TRIAL)."""
         cursor.execute(
-            "UPDATE UserProfile SET LicenseType = %s, LicenseValidTill = %s WHERE UserId = %s",
-            (license_type, valid_till, user_id),
+            """SELECT ul.LicenseType, ul.ValidTill, ul.CreatedAt
+               FROM UserLicense ul
+               WHERE ul.UserId = %s AND ul.ValidTill > NOW()
+               ORDER BY ul.CreatedAt""",
+            (user_id,),
         )
+        rows = cursor.fetchall()
+        return [
+            {
+                "LicenseType": r[0],
+                "ValidTill": r[1].isoformat() if r[1] else None,
+                "PurchasedAt": r[2].isoformat() if r[2] else None,
+            }
+            for r in rows
+        ]
+
+    @with_connection(commit=True)
+    def revoke_license(self, cursor, user_id, license_type):
+        """Remove a specific plan from a user. Recalculates UserProfile.LicenseType."""
+        cursor.execute(
+            "DELETE FROM UserLicense WHERE UserId = %s AND LicenseType = %s",
+            (user_id, license_type),
+        )
+        # Recalculate highest remaining active plan
+        cursor.execute("""
+            UPDATE UserProfile
+            SET LicenseType = COALESCE((
+                SELECT ul.LicenseType FROM UserLicense ul
+                WHERE ul.UserId = %s AND ul.ValidTill > NOW()
+                ORDER BY CASE ul.LicenseType
+                    WHEN 'BUNDLE'    THEN 1
+                    WHEN 'TRADE'     THEN 2
+                    WHEN 'DIRECTORY' THEN 3
+                    ELSE 4
+                END
+                LIMIT 1
+            ), 'TRIAL'),
+            LicenseValidTill = COALESCE((
+                SELECT ul.ValidTill FROM UserLicense ul
+                WHERE ul.UserId = %s AND ul.ValidTill > NOW()
+                ORDER BY ul.ValidTill DESC LIMIT 1
+            ), NULL)
+            WHERE UserId = %s
+        """, (user_id, user_id, user_id))
 
     @with_connection(commit=True)
     def save_contact_message(self, cursor, name, email, phone, message):
@@ -786,6 +896,41 @@ class PostgresAdminRepository(AdminRepository):
                 cursor.execute(stmt)
             except Exception:
                 pass
+
+    @with_connection(commit=True)
+    def apply_activation_migration(self, cursor):
+        """Add UNIQUE(UserId) to AccountActivation if missing (idempotent)."""
+        for stmt in ACTIVATION_MIGRATE_STATEMENTS:
+            try:
+                cursor.execute(stmt)
+            except Exception:
+                cursor.connection.rollback()
+
+    @with_connection(commit=True)
+    def apply_user_license_migration(self, cursor):
+        """Create UserLicense table + indexes and migrate existing licenses (idempotent)."""
+        cursor.execute(CREATE_USER_LICENSE_TABLE)
+        for stmt in USER_LICENSE_INDEX_STATEMENTS:
+            try:
+                cursor.execute(stmt)
+            except Exception:
+                cursor.connection.rollback()
+        # Migrate paid licenses from UserProfile.LicenseType → UserLicense
+        try:
+            cursor.execute("""
+                INSERT INTO UserLicense (UserId, LicenseType, ValidTill)
+                SELECT up.UserId, up.LicenseType,
+                    COALESCE(up.LicenseValidTill, NOW() + INTERVAL '1 year')
+                FROM UserProfile up
+                WHERE up.LicenseType IS NOT NULL
+                  AND up.LicenseType != 'TRIAL'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM UserLicense ul
+                    WHERE ul.UserId = up.UserId AND ul.LicenseType = up.LicenseType
+                  )
+            """)
+        except Exception:
+            cursor.connection.rollback()
 
 
 def _mask_secret(value):

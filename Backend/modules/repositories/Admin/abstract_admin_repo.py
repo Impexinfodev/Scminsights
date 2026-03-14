@@ -47,6 +47,12 @@ class AdminRepository(ABC):
     def assign_license(self, user_id, license_type):
         pass
 
+    def get_user_licenses(self, user_id):
+        return []
+
+    def revoke_license(self, user_id, license_type):
+        pass
+
     def get_all_hscodes(self):
         """Return list of {code, description}. Optional override for DB-backed HS codes."""
         return []

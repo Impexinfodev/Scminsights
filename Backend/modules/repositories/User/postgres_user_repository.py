@@ -310,35 +310,86 @@ class PostgresUserRepository(UserRepository):
 
     @with_connection(commit=False)
     def get_license_by_user_id(self, cursor, user_id):
+        # Fetch all active licenses from UserLicense table
         cursor.execute(
-            """SELECT lt.LicenseInfoJson, lt.LicenseType, up.LicenseValidTill
-               FROM UserProfile up
-               LEFT JOIN License lt ON up.LicenseType = lt.LicenseType
-               WHERE up.UserId = %s""",
+            """SELECT lt.LicenseInfoJson, lt.LicenseType, ul.ValidTill
+               FROM UserLicense ul
+               JOIN License lt ON ul.LicenseType = lt.LicenseType
+               WHERE ul.UserId = %s AND ul.ValidTill > NOW()
+               ORDER BY CASE ul.LicenseType
+                   WHEN 'BUNDLE'    THEN 1
+                   WHEN 'TRADE'     THEN 2
+                   WHEN 'DIRECTORY' THEN 3
+                   ELSE 4
+               END""",
             (user_id,),
         )
-        record = cursor.fetchone()
-        if not record or not record[0]:
+        rows = cursor.fetchall()
+
+        if not rows:
+            # No paid plans — return TRIAL defaults
             return {
                 "LicenseType": TRIAL,
+                "OwnedLicenses": [],
                 "NumberOfRowsPerPeriod": 10,
                 "DirectoryRowsPerSearch": 5,
                 "Period": "Month",
                 "IsSimsAccess": False,
                 "LicenseValidTill": datetime.max.replace(tzinfo=timezone.utc),
             }
-        try:
-            info = json.loads(record[0]) if isinstance(record[0], str) else record[0]
-        except (json.JSONDecodeError, TypeError):
-            info = {}
-        if not isinstance(info, dict):
-            info = {}
-        info["LicenseType"] = record[1] or TRIAL
-        if record[2]:
-            info["LicenseValidTill"] = record[2].replace(tzinfo=timezone.utc) if record[2].tzinfo is None else record[2]
-        else:
-            info["LicenseValidTill"] = datetime.max.replace(tzinfo=timezone.utc)
-        return _normalize_license_for_api(info)
+
+        # Merge all owned plans: take best (most permissive) access per feature
+        merged = {}
+        owned_types = []
+        latest_valid_till = None
+        for row in rows:
+            try:
+                info = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+            except (json.JSONDecodeError, TypeError):
+                info = {}
+            if not isinstance(info, dict):
+                continue
+            lic_type = row[1]
+            valid_till = row[2]
+            owned_types.append(lic_type)
+            if valid_till:
+                vt = valid_till.replace(tzinfo=timezone.utc) if valid_till.tzinfo is None else valid_till
+                if latest_valid_till is None or vt > latest_valid_till:
+                    latest_valid_till = vt
+            # Merge: first row wins for top-level keys (highest-ranked plan first)
+            for k, v in info.items():
+                if k not in merged:
+                    merged[k] = v
+            # For sub-feature dicts, take best access level
+            for feature in ("Directory", "Buyers", "Suppliers", "HsCode"):
+                existing = merged.get(feature) or {}
+                incoming = info.get(feature) or {}
+                if not isinstance(existing, dict):
+                    existing = {}
+                if not isinstance(incoming, dict):
+                    incoming = {}
+                merged_feature = dict(existing)
+                # "full" > "limited" > "custom" > "none"
+                ACCESS_RANK = {"full": 3, "limited": 2, "custom": 1, "none": 0}
+                ex_acc = ACCESS_RANK.get(existing.get("Access", "none"), 0)
+                in_acc = ACCESS_RANK.get(incoming.get("Access", "none"), 0)
+                if in_acc > ex_acc:
+                    merged_feature = dict(incoming)
+                elif in_acc == ex_acc and in_acc > 0:
+                    # Same tier: take max of numeric limits
+                    for num_key in ("MaxRows", "MaxRowsPerSearch", "MaxSearchesPerPeriod"):
+                        ex_val = existing.get(num_key) or 0
+                        in_val = incoming.get(num_key) or 0
+                        merged_feature[num_key] = max(ex_val, in_val)
+                merged[feature] = merged_feature
+
+        # Determine display LicenseType: highest-ranked plan
+        TYPE_RANK = {"BUNDLE": 4, "TRADE": 3, "DIRECTORY": 2, "TRIAL": 1}
+        display_type = max(owned_types, key=lambda t: TYPE_RANK.get(t, 0), default=TRIAL)
+        merged["LicenseType"] = display_type
+        merged["OwnedLicenses"] = owned_types
+        merged["LicenseValidTill"] = latest_valid_till or datetime.max.replace(tzinfo=timezone.utc)
+        return _normalize_license_for_api(merged)
 
     # SEC-07 FIX: Column names are whitelisted via an explicit allowlist mapping to prevent
     # any future contributor from accidentally passing user-controlled column names into SQL.

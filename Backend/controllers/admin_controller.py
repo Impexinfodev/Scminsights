@@ -520,6 +520,36 @@ def assign_license():
     return jsonify({"message": "License assigned"}), 200
 
 
+@admin_bp.route("/user-licenses/<string:user_id>", methods=["GET"])
+@require_auth
+@require_admin
+def get_user_licenses(user_id):
+    """Return all active licenses for a user."""
+    from repositories.repo_provider import RepoProvider
+    admin_repo = RepoProvider.get_admin_repo()
+    licenses = admin_repo.get_user_licenses(user_id)
+    return jsonify({"licenses": licenses}), 200
+
+
+@admin_bp.route("/revoke-license", methods=["POST"])
+@require_auth
+@require_admin
+def revoke_license():
+    """Remove a specific plan from a user."""
+    from repositories.repo_provider import RepoProvider
+    data = request.json or {}
+    user_id = (data.get("UserId") or "").strip()
+    license_type = (data.get("LicenseType") or "").strip()
+    if not user_id or not license_type:
+        return jsonify({"error": "UserId and LicenseType are required"}), 400
+    if license_type == "TRIAL":
+        return jsonify({"error": "Cannot revoke TRIAL — it is the default fallback"}), 400
+    admin_repo = RepoProvider.get_admin_repo()
+    admin_repo.revoke_license(user_id, license_type)
+    audit_event("admin_license_revoked", user_id=getattr(request, "user_id", ""), outcome="ok", target=user_id[:8] + "***", plan=license_type)
+    return jsonify({"message": "License revoked"}), 200
+
+
 @admin_bp.route("/transactions", methods=["GET"])
 @require_auth
 @require_admin

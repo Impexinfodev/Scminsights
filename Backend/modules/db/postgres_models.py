@@ -53,10 +53,34 @@ CREATE TABLE IF NOT EXISTS UserToken (
 CREATE_ACTIVATION_TABLE = """
 CREATE TABLE IF NOT EXISTS AccountActivation (
     ActivationToken VARCHAR(255) PRIMARY KEY,
-    UserId VARCHAR(255) NOT NULL,
+    UserId VARCHAR(255) NOT NULL UNIQUE,
     ExpirationTime TIMESTAMPTZ NOT NULL
 );
 """
+
+# Migration: add UNIQUE constraint on UserId for existing AccountActivation tables
+ACTIVATION_MIGRATE_STATEMENTS = [
+    # Drop any duplicate rows first (keep the most recent token per user)
+    """
+    DELETE FROM AccountActivation a
+    USING AccountActivation b
+    WHERE a.ctid < b.ctid AND a.UserId = b.UserId;
+    """,
+    # Add the unique constraint if not already present
+    """
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conrelid = 'accountactivation'::regclass
+              AND contype = 'u'
+              AND conname = 'accountactivation_userid_key'
+        ) THEN
+            ALTER TABLE AccountActivation ADD CONSTRAINT accountactivation_userid_key UNIQUE (UserId);
+        END IF;
+    END $$;
+    """,
+]
 
 CREATE_PASSWORD_RESET_TABLE = """
 CREATE TABLE IF NOT EXISTS PasswordReset (
@@ -115,6 +139,24 @@ PAYMENT_INDEX_STATEMENTS = [
     "CREATE INDEX IF NOT EXISTS idx_payment_source_website ON PaymentTransaction (SourceWebsite);",
 ]
 DROP_PAYMENT_TABLE = "DROP TABLE IF EXISTS PaymentTransaction CASCADE;"
+
+# Multi-license: one row per active purchased plan per user.
+# TRIAL is never stored here — it is the implicit fallback.
+CREATE_USER_LICENSE_TABLE = """
+CREATE TABLE IF NOT EXISTS UserLicense (
+    Id SERIAL PRIMARY KEY,
+    UserId VARCHAR(255) NOT NULL REFERENCES UserProfile(UserId) ON DELETE CASCADE,
+    LicenseType VARCHAR(50) NOT NULL,
+    ValidTill TIMESTAMPTZ NOT NULL,
+    CreatedAt TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(UserId, LicenseType)
+);
+"""
+USER_LICENSE_INDEX_STATEMENTS = [
+    "CREATE INDEX IF NOT EXISTS idx_userlicense_user ON UserLicense (UserId);",
+    "CREATE INDEX IF NOT EXISTS idx_userlicense_validtill ON UserLicense (ValidTill);",
+]
+DROP_USER_LICENSE_TABLE = "DROP TABLE IF EXISTS UserLicense CASCADE;"
 
 # HS Code descriptions (seeded from all_hscodes_with_descriptions.csv)
 CREATE_HS_CODE_TABLE = """
